@@ -16,6 +16,8 @@ public interface OSCManager {
     
     void setOSCCallback(OSCCallback callback);
     
+    void setDebugMode(boolean debug);
+    
     interface OSCCallback {
         void onCueTrigger(int index);
         void onSceneTrigger(int index);

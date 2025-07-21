@@ -29,13 +29,13 @@ tasks.register('copyBwextension', Copy) {
     from(shadowJar)
     into('build')
     rename { String fileName ->
-        fileName.replace(project.name, ARTEFACT_NAME).replace(".jar", ".bwextension")
+        fileName.replace(".jar", ".bwextension")
     }
 }
 
 tasks.register('deployToBitwig', Copy) {
     description = "Copies the .bwextension file to the Bitwig Studio Extensions directory."
-    from 'build/' + ARTEFACT_NAME + '-' + version + '.bwextension'
+    from 'build/' + ARTEFACT_NAME + '-' + version + '-all.bwextension'
     into '/Users/davidrival/Documents/Bitwig Studio/Extensions'
 }
 

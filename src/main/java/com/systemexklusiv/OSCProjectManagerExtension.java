@@ -4,6 +4,7 @@ import com.bitwig.extension.controller.api.ControllerHost;
 import com.bitwig.extension.controller.api.Preferences;
 import com.bitwig.extension.controller.api.SettableStringValue;
 import com.bitwig.extension.controller.api.SettableRangedValue;
+import com.bitwig.extension.controller.api.SettableBooleanValue;
 import com.bitwig.extension.controller.ControllerExtension;
 
 import com.systemexklusiv.services.APIService;
@@ -25,6 +26,7 @@ public class OSCProjectManagerExtension extends ControllerExtension
    private SettableStringValue sendHostSetting;
    private SettableRangedValue sendPortSetting;
    private SettableRangedValue receivePortSetting;
+   private SettableBooleanValue debugSetting;
 
    protected OSCProjectManagerExtension(final OSCProjectManagerExtensionDefinition definition, final ControllerHost host)
    {
@@ -41,8 +43,8 @@ public class OSCProjectManagerExtension extends ControllerExtension
       setupOSCCallback();
       startServices();
 
-      host.showPopupNotification("OSCProjectManager Initialized");
-      host.println("OSCProjectManager Initialized with OSC communication!");
+      host.showPopupNotification("OSCProjectManager Initialized yo");
+      host.println("OSCProjectManager Initialized with OSC communication yo!");
    }
    
    private void setupPreferences() {
@@ -56,6 +58,9 @@ public class OSCProjectManagerExtension extends ControllerExtension
       
       receivePortSetting = preferences.getNumberSetting(
           "Receive Port", "OSC Settings", 1024, 65535, 1, "", 8001);
+      
+      debugSetting = preferences.getBooleanSetting(
+          "Debug Logging", "OSC Settings", false);
    }
    
    private void initializeServices() {
@@ -67,10 +72,24 @@ public class OSCProjectManagerExtension extends ControllerExtension
       apiService.initialize(getHost());
       
       String sendHost = sendHostSetting.get();
+      if (sendHost == null || sendHost.isEmpty()) {
+          sendHost = "192.168.1.100";
+      }
+      
       int sendPort = (int) sendPortSetting.get();
+      if (sendPort == 0) {
+          sendPort = 8000;
+      }
+      
       int receivePort = (int) receivePortSetting.get();
+      if (receivePort == 0) {
+          receivePort = 8001;
+      }
+      
+      getHost().println("OSC Config - Send Host: " + sendHost + ", Send Port: " + sendPort + ", Receive Port: " + receivePort);
       
       oscManager.initialize(getHost(), sendHost, sendPort, receivePort);
+      oscManager.setDebugMode(debugSetting.get());
       
       cueMarkerService.initialize(apiService, oscManager);
       sceneService.initialize(apiService, oscManager);
@@ -90,16 +109,35 @@ public class OSCProjectManagerExtension extends ControllerExtension
       receivePortSetting.addValueObserver(port -> {
           restartOSC();
       });
+      
+      debugSetting.addValueObserver(debug -> {
+          oscManager.setDebugMode(debug);
+          getHost().println("Debug mode " + (debug ? "enabled" : "disabled"));
+      });
    }
    
    private void restartOSC() {
       oscManager.stop();
       
       String sendHost = sendHostSetting.get();
+      if (sendHost == null || sendHost.isEmpty()) {
+          sendHost = "192.168.1.100";
+      }
+      
       int sendPort = (int) sendPortSetting.get();
+      if (sendPort == 0) {
+          sendPort = 8000;
+      }
+      
       int receivePort = (int) receivePortSetting.get();
+      if (receivePort == 0) {
+          receivePort = 8001;
+      }
+      
+      getHost().println("OSC Restart - Send Host: " + sendHost + ", Send Port: " + sendPort + ", Receive Port: " + receivePort);
       
       oscManager.initialize(getHost(), sendHost, sendPort, receivePort);
+      oscManager.setDebugMode(debugSetting.get());
       oscManager.start();
    }
    

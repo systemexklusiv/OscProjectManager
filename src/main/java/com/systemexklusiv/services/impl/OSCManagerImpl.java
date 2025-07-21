@@ -23,6 +23,7 @@ public class OSCManagerImpl implements OSCManager {
     private String sendHost;
     private int sendPort;
     private int receivePort;
+    private boolean debugMode = false;
     
     @Override
     public void initialize(ControllerHost host, String sendHost, int sendPort, int receivePort) {
@@ -76,6 +77,11 @@ public class OSCManagerImpl implements OSCManager {
         try {
             String indexStr = address.substring("/cue/trigger".length());
             int index = Integer.parseInt(indexStr);
+            
+            if (debugMode) {
+                host.println("[DEBUG] Received cue trigger: " + address + " -> triggering cue " + index);
+            }
+            
             callback.onCueTrigger(index);
             
         } catch (NumberFormatException e) {
@@ -91,6 +97,11 @@ public class OSCManagerImpl implements OSCManager {
         try {
             String indexStr = address.substring("/scene/trigger".length());
             int index = Integer.parseInt(indexStr);
+            
+            if (debugMode) {
+                host.println("[DEBUG] Received scene trigger: " + address + " -> triggering scene " + index);
+            }
+            
             callback.onSceneTrigger(index);
             
         } catch (NumberFormatException e) {
@@ -107,6 +118,10 @@ public class OSCManagerImpl implements OSCManager {
             OSCMessage message = new OSCMessage(address, Arrays.asList(name));
             oscSender.send(message);
             
+            if (debugMode) {
+                host.println("[DEBUG] Sent cue marker: " + address + " -> \"" + name + "\"");
+            }
+            
         } catch (IOException e) {
             host.errorln("Failed to send cue marker name: " + e.getMessage());
         }
@@ -120,6 +135,10 @@ public class OSCManagerImpl implements OSCManager {
             String address = "/scene" + index + "/name";
             OSCMessage message = new OSCMessage(address, Arrays.asList(name));
             oscSender.send(message);
+            
+            if (debugMode) {
+                host.println("[DEBUG] Sent scene: " + address + " -> \"" + name + "\"");
+            }
             
         } catch (IOException e) {
             host.errorln("Failed to send scene name: " + e.getMessage());
@@ -167,5 +186,10 @@ public class OSCManagerImpl implements OSCManager {
     @Override
     public void setOSCCallback(OSCCallback callback) {
         this.callback = callback;
+    }
+    
+    @Override
+    public void setDebugMode(boolean debug) {
+        this.debugMode = debug;
     }
 }
