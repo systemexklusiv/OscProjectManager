@@ -1,5 +1,6 @@
 plugins {
     id 'java'
+    id 'com.github.johnrengelman.shadow' version '7.1.2'
 }
 
 group = 'com.systemexklusiv'
@@ -14,6 +15,7 @@ repositories {
 
 dependencies {
     implementation 'com.bitwig:extension-api:24'
+    implementation 'com.illposed.osc:javaosc-core:0.4'
 }
 
 java {
@@ -24,7 +26,7 @@ java {
 final var String ARTEFACT_NAME = "OSCProjectManager"
 
 tasks.register('copyBwextension', Copy) {
-    from(jar)
+    from(shadowJar)
     into('build')
     rename { String fileName ->
         fileName.replace(project.name, ARTEFACT_NAME).replace(".jar", ".bwextension")
@@ -39,4 +41,5 @@ tasks.register('deployToBitwig', Copy) {
 
 copyBwextension.finalizedBy(deployToBitwig)
 
-build.finalizedBy(copyBwextension)
+shadowJar.finalizedBy(copyBwextension)
+build.finalizedBy(shadowJar)
