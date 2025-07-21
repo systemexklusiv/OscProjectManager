@@ -1,0 +1,42 @@
+plugins {
+    id 'java'
+}
+
+group = 'com.systemexklusiv'
+version = '0.1'
+
+repositories {
+    mavenCentral()
+    maven {
+        url = uri("https://maven.bitwig.com")
+    }
+}
+
+dependencies {
+    implementation 'com.bitwig:extension-api:24'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
+
+final var String ARTEFACT_NAME = "OSCProjectManager"
+
+tasks.register('copyBwextension', Copy) {
+    from(jar)
+    into('build')
+    rename { String fileName ->
+        fileName.replace(project.name, ARTEFACT_NAME).replace(".jar", ".bwextension")
+    }
+}
+
+tasks.register('deployToBitwig', Copy) {
+    description = "Copies the .bwextension file to the Bitwig Studio Extensions directory."
+    from 'build/' + ARTEFACT_NAME + '-' + version + '.bwextension'
+    into '/Users/davidrival/Documents/Bitwig Studio/Extensions'
+}
+
+copyBwextension.finalizedBy(deployToBitwig)
+
+build.finalizedBy(copyBwextension)
