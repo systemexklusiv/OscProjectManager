@@ -51,16 +51,24 @@ public class OSCProjectManagerExtension extends ControllerExtension
       Preferences preferences = getHost().getPreferences();
       
       sendHostSetting = preferences.getStringSetting(
-          "Send Host", "OSC Settings", 16, "192.168.1.100");
+          "Send Host", "OSC Settings", 16, "127.0.0.1");
       
       sendPortSetting = preferences.getNumberSetting(
-          "Send Port", "OSC Settings", 1024, 65535, 1, "", 8000);
+          "Send Port", "OSC Settings", 1024, 65535, 1, "", 9000);
       
       receivePortSetting = preferences.getNumberSetting(
-          "Receive Port", "OSC Settings", 1024, 65535, 1, "", 8001);
+          "Receive Port", "OSC Settings", 1024, 65535, 1, "", 8000);
       
       debugSetting = preferences.getBooleanSetting(
-          "Debug Logging", "OSC Settings", false);
+          "Debug Logging", "OSC Settings", true);
+      
+      // Force preference values to be ready
+      sendHostSetting.markInterested();
+      sendPortSetting.markInterested();
+      receivePortSetting.markInterested();
+      debugSetting.markInterested();
+      
+      getHost().println("Preferences initialized with defaults: Host=127.0.0.1, SendPort=9000, ReceivePort=8000, Debug=true");
    }
    
    private void initializeServices() {
@@ -76,16 +84,20 @@ public class OSCProjectManagerExtension extends ControllerExtension
           sendHost = "192.168.1.100";
       }
       
+      double sendPortRaw = sendPortSetting.get();
+      double receivePortRaw = receivePortSetting.get();
+      
       int sendPort = (int) sendPortSetting.get();
       if (sendPort == 0) {
-          sendPort = 8000;
+          sendPort = 9000;
       }
       
       int receivePort = (int) receivePortSetting.get();
       if (receivePort == 0) {
-          receivePort = 8001;
+          receivePort = 8000;
       }
       
+      getHost().println("OSC Config DEBUG - Raw values: sendPort=" + sendPortRaw + ", receivePort=" + receivePortRaw);
       getHost().println("OSC Config - Send Host: " + sendHost + ", Send Port: " + sendPort + ", Receive Port: " + receivePort);
       
       oscManager.initialize(getHost(), sendHost, sendPort, receivePort);
@@ -126,12 +138,12 @@ public class OSCProjectManagerExtension extends ControllerExtension
       
       int sendPort = (int) sendPortSetting.get();
       if (sendPort == 0) {
-          sendPort = 8000;
+          sendPort = 9000;
       }
       
       int receivePort = (int) receivePortSetting.get();
       if (receivePort == 0) {
-          receivePort = 8001;
+          receivePort = 8000;
       }
       
       getHost().println("OSC Restart - Send Host: " + sendHost + ", Send Port: " + sendPort + ", Receive Port: " + receivePort);
@@ -159,6 +171,12 @@ public class OSCProjectManagerExtension extends ControllerExtension
       oscManager.start();
       cueMarkerService.startMonitoring();
       sceneService.startMonitoring();
+      
+      // Test message to verify OSC is working - delay it a bit
+      getHost().scheduleTask(() -> {
+          oscManager.sendCueMarkerName(99, "TEST_MESSAGE_ON_STARTUP");
+          oscManager.sendCueMarkerName(98, "SECOND_TEST_MESSAGE");
+      }, 1000); // 1 second delay
    }
 
    @Override
