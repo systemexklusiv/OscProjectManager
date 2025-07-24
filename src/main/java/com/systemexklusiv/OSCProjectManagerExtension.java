@@ -173,10 +173,10 @@ public class OSCProjectManagerExtension extends ControllerExtension
       sceneService.startMonitoring();
       
       // Test message to verify OSC is working - delay it a bit
-      getHost().scheduleTask(() -> {
-          oscManager.sendCueMarkerName(99, "TEST_MESSAGE_ON_STARTUP");
-          oscManager.sendCueMarkerName(98, "SECOND_TEST_MESSAGE");
-      }, 1000); // 1 second delay
+//      getHost().scheduleTask(() -> {
+//          oscManager.sendCueMarkerName(99, "TEST_MESSAGE_ON_STARTUP");
+//          oscManager.sendCueMarkerName(100, "SECOND_TEST_MESSAGE");
+//      }, 1000); // 1 second delay
    }
 
    @Override
