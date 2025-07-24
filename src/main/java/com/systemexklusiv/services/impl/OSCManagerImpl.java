@@ -114,18 +114,17 @@ public class OSCManagerImpl implements OSCManager {
         if (oscSender == null) return;
         
         try {
-            String address = "/cue" + index + "/text";
-            String address2 = "/cue" + index + "/Text";
-            String address3 = "/cue" + index + "/Text/Values/Current";
+            String address = "/cue" + index;
+
             OSCMessage message = new OSCMessage(address, Arrays.asList(name));
             oscSender.send(message);
-            OSCMessage message = new OSCMessage(address2, Arrays.asList(name));
-            oscSender.send(message);
-            OSCMessage message = new OSCMessage(address3, Arrays.asList(name));
-            oscSender.send(message);
-            
+
             if (debugMode && name.contains("TEST")) {
                 host.println("[DEBUG] Sent cue marker: " + address + " -> \"" + name + "\"");
+//                host.println("[DEBUG] Sent cue marker: " + address1 + " -> \"" + name + "\"");
+//                host.println("[DEBUG] Sent cue marker: " + address2 + " -> \"" + name + "\"");
+//                host.println("[DEBUG] Sent cue marker: " + address3 + " -> \"" + name + "\"");
+//                host.println("[DEBUG] Sent cue marker: " + address4 + " -> \"" + name + "\"");
             }
             
         } catch (IOException e) {
