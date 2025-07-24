@@ -15,7 +15,11 @@ import java.net.UnknownHostException;
 import java.util.Arrays;
 
 public class OSCManagerImpl implements OSCManager {
-    
+
+    public static final String CUE_TRIGGER_OSC_PATH = "/cue/trigger";
+    public static final String SCENE_SEND_NAME_OSC_PATH = "/scene";
+    public static final String SCENE_TRIGGER_OSC_PATH = "/scene/trigger";
+    public static final String CUE_SEND_NAME_OSC_PATH = "/cue";
     private ControllerHost host;
     private OSCPortIn oscReceiver;
     private OSCPortOut oscSender;
@@ -40,14 +44,14 @@ public class OSCManagerImpl implements OSCManager {
         try {
             oscReceiver = new OSCPortIn(receivePort);
             
-            oscReceiver.addListener("/cue/trigger*", new OSCListener() {
+            oscReceiver.addListener(CUE_TRIGGER_OSC_PATH+"*", new OSCListener() {
                 @Override
                 public void acceptMessage(java.util.Date time, OSCMessage message) {
                     handleCueTrigger(message);
                 }
             });
             
-            oscReceiver.addListener("/scene/trigger*", new OSCListener() {
+            oscReceiver.addListener(SCENE_TRIGGER_OSC_PATH+"*", new OSCListener() {
                 @Override
                 public void acceptMessage(java.util.Date time, OSCMessage message) {
                     handleSceneTrigger(message);
@@ -75,8 +79,8 @@ public class OSCManagerImpl implements OSCManager {
         String address = message.getAddress();
         
         try {
-            String indexStr = address.substring("/cue/trigger".length());
-            int oscIndex = Integer.parseInt(indexStr);  // 1-based from TouchOSC
+            String indexStr = address.substring(CUE_TRIGGER_OSC_PATH.length());
+            int oscIndex = (int) Float.parseFloat(indexStr);  // 1-based from TouchOSC
             int apiIndex = oscIndex - 1;  // Convert to 0-based for API
             
             if (debugMode) {
@@ -96,18 +100,18 @@ public class OSCManagerImpl implements OSCManager {
         String address = message.getAddress();
         
         try {
-            String indexStr = address.substring("/scene/trigger".length());
+            String indexStr = address.substring(SCENE_TRIGGER_OSC_PATH.length());
             int oscIndex = Integer.parseInt(indexStr);  // 1-based from TouchOSC
             int apiIndex = oscIndex - 1;  // Convert to 0-based for API
             
             if (debugMode) {
-                host.println("[DEBUG] Received scene trigger: " + address + " -> triggering scene " + oscIndex + " (API index " + apiIndex + ")");
+                host.println("[DEBUG] Received " + SCENE_SEND_NAME_OSC_PATH + " trigger: " + address + " -> triggering " + SCENE_SEND_NAME_OSC_PATH + " " + oscIndex + " (API index " + apiIndex + ")");
             }
             
             callback.onSceneTrigger(apiIndex);
             
         } catch (NumberFormatException e) {
-            host.errorln("Invalid scene trigger format: " + address);
+            host.errorln("Invalid " + SCENE_SEND_NAME_OSC_PATH + " trigger format: " + address);
         }
     }
     
@@ -116,7 +120,7 @@ public class OSCManagerImpl implements OSCManager {
         if (oscSender == null) return;
         
         try {
-            String address = "/cue" + index;
+            String address = CUE_SEND_NAME_OSC_PATH + index;
 
             OSCMessage message = new OSCMessage(address, Arrays.asList(name));
             oscSender.send(message);
@@ -139,16 +143,16 @@ public class OSCManagerImpl implements OSCManager {
         if (oscSender == null) return;
         
         try {
-            String address = "/scene" + index;
+            String address = SCENE_SEND_NAME_OSC_PATH + index;
             OSCMessage message = new OSCMessage(address, Arrays.asList(name));
             oscSender.send(message);
             
             if (debugMode && name.contains("TEST")) {
-                host.println("[DEBUG] Sent scene: " + address + " -> \"" + name + "\"");
+                host.println("[DEBUG] Sent " + SCENE_SEND_NAME_OSC_PATH + ": " + address + " -> \"" + name + "\"");
             }
             
         } catch (IOException e) {
-            host.errorln("Failed to send scene name: " + e.getMessage());
+            host.errorln("Failed to send " + SCENE_SEND_NAME_OSC_PATH + " name: " + e.getMessage());
         }
     }
     
