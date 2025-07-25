@@ -25,7 +25,7 @@ public class SceneServiceImpl implements SceneService {
         SceneBank sceneBank = apiService.getSceneBank();
         
         for (int i = 0; i < sceneBank.getSizeOfBank(); i++) {
-            final int index = i + 1;  // OSC uses 1-based indexing
+            final int index = i;  // OSC uses 0-based indexing
             Scene scene = sceneBank.getItemAt(i);
             
             scene.exists().addValueObserver(exists -> {
@@ -55,13 +55,13 @@ public class SceneServiceImpl implements SceneService {
     @Override
     public void broadcastAllScenes() {
         for (int i = 0; i < apiService.getSceneBank().getSizeOfBank(); i++) {
-            broadcastScene(i + 1);  // OSC uses 1-based indexing
+            broadcastScene(i);  // OSC uses 0-based indexing
         }
     }
     
     @Override
     public void broadcastScene(int index) {
-        String name = apiService.getSceneName(index - 1);  // API uses 0-based indexing
+        String name = apiService.getSceneName(index);  // Both OSC and API use 0-based indexing
         oscManager.sendSceneName(index, name);
     }
 }

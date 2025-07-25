@@ -25,7 +25,7 @@ public class CueMarkerServiceImpl implements CueMarkerService {
         CueMarkerBank cueMarkerBank = apiService.getCueMarkerBank();
         
         for (int i = 0; i < cueMarkerBank.getSizeOfBank(); i++) {
-            final int index = i + 1;  // OSC uses 1-based indexing
+            final int index = i;  // OSC uses 0-based indexing
             CueMarker cueMarker = cueMarkerBank.getItemAt(i);
             
             cueMarker.exists().addValueObserver(exists -> {
@@ -55,13 +55,13 @@ public class CueMarkerServiceImpl implements CueMarkerService {
     @Override
     public void broadcastAllCueMarkers() {
         for (int i = 0; i < apiService.getCueMarkerBank().getSizeOfBank(); i++) {
-            broadcastCueMarker(i + 1);  // OSC uses 1-based indexing
+            broadcastCueMarker(i);  // OSC uses 0-based indexing
         }
     }
     
     @Override
     public void broadcastCueMarker(int index) {
-        String name = apiService.getCueMarkerName(index - 1);  // API uses 0-based indexing
+        String name = apiService.getCueMarkerName(index);  // Both OSC and API use 0-based indexing
         oscManager.sendCueMarkerName(index, name);
     }
 }

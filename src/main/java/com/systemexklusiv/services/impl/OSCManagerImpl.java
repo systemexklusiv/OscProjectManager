@@ -80,14 +80,13 @@ public class OSCManagerImpl implements OSCManager {
         
         try {
             String indexStr = address.substring(CUE_TRIGGER_OSC_PATH.length());
-            int oscIndex = (int) Float.parseFloat(indexStr);  // 1-based from TouchOSC
-            int apiIndex = oscIndex - 1;  // Convert to 0-based for API
+            int index = (int) Float.parseFloat(indexStr);  // 0-based from TouchOSC
             
             if (debugMode) {
-                host.println("[DEBUG] Received cue trigger: " + address + " -> triggering cue " + oscIndex + " (API index " + apiIndex + ")");
+                host.println("[DEBUG] Received cue trigger: " + address + " -> triggering cue " + index);
             }
             
-            callback.onCueTrigger(apiIndex);
+            callback.onCueTrigger(index);
             
         } catch (NumberFormatException e) {
             host.errorln("Invalid cue trigger format: " + address);
@@ -101,14 +100,13 @@ public class OSCManagerImpl implements OSCManager {
         
         try {
             String indexStr = address.substring(SCENE_TRIGGER_OSC_PATH.length());
-            int oscIndex = Integer.parseInt(indexStr);  // 1-based from TouchOSC
-            int apiIndex = oscIndex - 1;  // Convert to 0-based for API
+            int index = Integer.parseInt(indexStr);  // 0-based from TouchOSC
             
             if (debugMode) {
-                host.println("[DEBUG] Received " + SCENE_SEND_NAME_OSC_PATH + " trigger: " + address + " -> triggering " + SCENE_SEND_NAME_OSC_PATH + " " + oscIndex + " (API index " + apiIndex + ")");
+                host.println("[DEBUG] Received scene trigger: " + address + " -> triggering scene " + index);
             }
             
-            callback.onSceneTrigger(apiIndex);
+            callback.onSceneTrigger(index);
             
         } catch (NumberFormatException e) {
             host.errorln("Invalid " + SCENE_SEND_NAME_OSC_PATH + " trigger format: " + address);
