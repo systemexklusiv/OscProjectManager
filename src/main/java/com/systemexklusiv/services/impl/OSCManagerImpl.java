@@ -16,10 +16,10 @@ import java.util.Arrays;
 
 public class OSCManagerImpl implements OSCManager {
 
-    public static final String CUE_TRIGGER_OSC_PATH = "/cue/trigger";
-    public static final String SCENE_SEND_NAME_OSC_PATH = "/scene";
-    public static final String SCENE_TRIGGER_OSC_PATH = "/scene/trigger";
-    public static final String CUE_SEND_NAME_OSC_PATH = "/cue";
+    public static final String CUE_TRIGGER_OSC_PATH = "/cue/trigger/";
+    public static final String SCENE_SEND_NAME_OSC_PATH = "/scene/name/";
+    public static final String SCENE_TRIGGER_OSC_PATH = "/scene/trigger/";
+    public static final String CUE_SEND_NAME_OSC_PATH = "/cue/name/";
     private ControllerHost host;
     private OSCPortIn oscReceiver;
     private OSCPortOut oscSender;
