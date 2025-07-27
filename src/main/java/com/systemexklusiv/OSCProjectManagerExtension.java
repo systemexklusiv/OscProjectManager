@@ -27,6 +27,8 @@ public class OSCProjectManagerExtension extends ControllerExtension
    private SettableRangedValue sendPortSetting;
    private SettableRangedValue receivePortSetting;
    private SettableBooleanValue debugSetting;
+   
+   private boolean initializationComplete = false;
 
    protected OSCProjectManagerExtension(final OSCProjectManagerExtensionDefinition definition, final ControllerHost host)
    {
@@ -42,6 +44,8 @@ public class OSCProjectManagerExtension extends ControllerExtension
       initializeServices();
       setupOSCCallback();
       startServices();
+      
+      initializationComplete = true;  // Set flag after everything is initialized
 
       host.showPopupNotification("OSCProjectManager Initialized yo");
       host.println("OSCProjectManager Initialized with OSC communication yo!");
@@ -111,20 +115,28 @@ public class OSCProjectManagerExtension extends ControllerExtension
    
    private void setupPreferenceObservers() {
       sendHostSetting.addValueObserver(host -> {
-          restartOSC();
+          if (initializationComplete) {
+              restartOSC();
+          }
       });
       
       sendPortSetting.addValueObserver(port -> {
-          restartOSC();
+          if (initializationComplete) {
+              restartOSC();
+          }
       });
       
       receivePortSetting.addValueObserver(port -> {
-          restartOSC();
+          if (initializationComplete) {
+              restartOSC();
+          }
       });
       
       debugSetting.addValueObserver(debug -> {
           oscManager.setDebugMode(debug);
-          getHost().println("Debug mode " + (debug ? "enabled" : "disabled"));
+          if (initializationComplete) {
+              getHost().println("Debug mode " + (debug ? "enabled" : "disabled"));
+          }
       });
    }
    

@@ -10,6 +10,8 @@ public interface OSCManager {
     
     void sendSceneName(int index, String name);
     
+    void sendCueMarkerCount(int count);
+    
     void start();
     
     void stop();

@@ -11,6 +11,7 @@ public class CueMarkerServiceImpl implements CueMarkerService {
     private APIService apiService;
     private OSCManager oscManager;
     private boolean isMonitoring = false;
+    private int lastCueMarkerCount = -1;
     
     @Override
     public void initialize(APIService apiService, OSCManager oscManager) {
@@ -34,6 +35,7 @@ public class CueMarkerServiceImpl implements CueMarkerService {
                 } else {
                     oscManager.sendCueMarkerName(index, "");
                 }
+                updateCueMarkerCountIfChanged();
             });
             
             cueMarker.getName().addValueObserver(name -> {
@@ -45,6 +47,7 @@ public class CueMarkerServiceImpl implements CueMarkerService {
         
         isMonitoring = true;
         broadcastAllCueMarkers();
+        broadcastCueMarkerCount();
     }
     
     @Override
@@ -63,5 +66,20 @@ public class CueMarkerServiceImpl implements CueMarkerService {
     public void broadcastCueMarker(int index) {
         String name = apiService.getCueMarkerName(index);  // Both OSC and API use 0-based indexing
         oscManager.sendCueMarkerName(index, name);
+    }
+    
+    @Override
+    public void broadcastCueMarkerCount() {
+        int count = apiService.getCueMarkerCount();
+        oscManager.sendCueMarkerCount(count);
+        lastCueMarkerCount = count;
+    }
+    
+    private void updateCueMarkerCountIfChanged() {
+        int currentCount = apiService.getCueMarkerCount();
+        if (currentCount != lastCueMarkerCount) {
+            oscManager.sendCueMarkerCount(currentCount);
+            lastCueMarkerCount = currentCount;
+        }
     }
 }

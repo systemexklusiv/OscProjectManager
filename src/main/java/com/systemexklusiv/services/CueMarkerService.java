@@ -11,4 +11,6 @@ public interface CueMarkerService {
     void broadcastAllCueMarkers();
     
     void broadcastCueMarker(int index);
+    
+    void broadcastCueMarkerCount();
 }

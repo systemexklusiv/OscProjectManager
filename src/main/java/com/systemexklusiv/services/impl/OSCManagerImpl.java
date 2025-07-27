@@ -155,6 +155,24 @@ public class OSCManagerImpl implements OSCManager {
     }
     
     @Override
+    public void sendCueMarkerCount(int count) {
+        if (oscSender == null) return;
+        
+        try {
+            String address = "/cue/amount";
+            OSCMessage message = new OSCMessage(address, Arrays.asList(count));
+            oscSender.send(message);
+            
+            if (debugMode) {
+                host.println("[DEBUG] Sent cue marker count: " + address + " -> " + count);
+            }
+            
+        } catch (IOException e) {
+            host.errorln("Failed to send cue marker count: " + e.getMessage());
+        }
+    }
+    
+    @Override
     public void start() {
         if (oscReceiver != null) {
             try {
