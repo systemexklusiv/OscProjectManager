@@ -7,21 +7,17 @@ import com.bitwig.extension.controller.api.SettableRangedValue;
 import com.bitwig.extension.controller.api.SettableBooleanValue;
 import com.bitwig.extension.controller.ControllerExtension;
 
-import com.systemexklusiv.services.APIService;
-import com.systemexklusiv.services.OSCManager;
-import com.systemexklusiv.services.CueMarkerService;
-import com.systemexklusiv.services.SceneService;
-import com.systemexklusiv.services.impl.APIServiceImpl;
-import com.systemexklusiv.services.impl.OSCManagerImpl;
-import com.systemexklusiv.services.impl.CueMarkerServiceImpl;
-import com.systemexklusiv.services.impl.SceneServiceImpl;
+import com.systemexklusiv.services.APIServiceImpl;
+import com.systemexklusiv.services.OSCManagerImpl;
+import com.systemexklusiv.services.CueMarkerServiceImpl;
+import com.systemexklusiv.services.SceneServiceImpl;
 
 public class OSCProjectManagerExtension extends ControllerExtension
 {
-   private APIService apiService;
-   private OSCManager oscManager;
-   private CueMarkerService cueMarkerService;
-   private SceneService sceneService;
+   private APIServiceImpl apiService;
+   private OSCManagerImpl oscManager;
+   private CueMarkerServiceImpl cueMarkerService;
+   private SceneServiceImpl sceneService;
    
    private SettableStringValue sendHostSetting;
    private SettableRangedValue sendPortSetting;
@@ -166,7 +162,7 @@ public class OSCProjectManagerExtension extends ControllerExtension
    }
    
    private void setupOSCCallback() {
-      oscManager.setOSCCallback(new OSCManager.OSCCallback() {
+      oscManager.setOSCCallback(new OSCManagerImpl.OSCCallback() {
           @Override
           public void onCueTrigger(int index) {
               apiService.triggerCueMarker(index);
@@ -175,6 +171,11 @@ public class OSCProjectManagerExtension extends ControllerExtension
           @Override
           public void onSceneTrigger(int index) {
               apiService.triggerScene(index);
+          }
+          
+          @Override
+          public void onTrackDuplicateToNew() {
+              apiService.duplicateSelectedTrackToNew();
           }
       });
    }

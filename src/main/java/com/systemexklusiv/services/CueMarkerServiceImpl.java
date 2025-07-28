@@ -1,25 +1,20 @@
-package com.systemexklusiv.services.impl;
+package com.systemexklusiv.services;
 
 import com.bitwig.extension.controller.api.CueMarker;
 import com.bitwig.extension.controller.api.CueMarkerBank;
-import com.systemexklusiv.services.APIService;
-import com.systemexklusiv.services.CueMarkerService;
-import com.systemexklusiv.services.OSCManager;
 
-public class CueMarkerServiceImpl implements CueMarkerService {
+public class CueMarkerServiceImpl {
     
-    private APIService apiService;
-    private OSCManager oscManager;
+    private APIServiceImpl apiService;
+    private OSCManagerImpl oscManager;
     private boolean isMonitoring = false;
     private int lastCueMarkerCount = -1;
     
-    @Override
-    public void initialize(APIService apiService, OSCManager oscManager) {
+    public void initialize(APIServiceImpl apiService, OSCManagerImpl oscManager) {
         this.apiService = apiService;
         this.oscManager = oscManager;
     }
     
-    @Override
     public void startMonitoring() {
         if (isMonitoring) return;
         
@@ -50,25 +45,21 @@ public class CueMarkerServiceImpl implements CueMarkerService {
         broadcastCueMarkerCount();
     }
     
-    @Override
     public void stopMonitoring() {
         isMonitoring = false;
     }
     
-    @Override
     public void broadcastAllCueMarkers() {
         for (int i = 0; i < apiService.getCueMarkerBank().getSizeOfBank(); i++) {
             broadcastCueMarker(i);  // OSC uses 0-based indexing
         }
     }
     
-    @Override
     public void broadcastCueMarker(int index) {
         String name = apiService.getCueMarkerName(index);  // Both OSC and API use 0-based indexing
         oscManager.sendCueMarkerName(index, name);
     }
     
-    @Override
     public void broadcastCueMarkerCount() {
         int count = apiService.getCueMarkerCount();
         oscManager.sendCueMarkerCount(count);

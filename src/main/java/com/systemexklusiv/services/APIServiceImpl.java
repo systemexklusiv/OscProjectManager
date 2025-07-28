@@ -1,4 +1,4 @@
-package com.systemexklusiv.services.impl;
+package com.systemexklusiv.services;
 
 import com.bitwig.extension.controller.api.Arranger;
 import com.bitwig.extension.controller.api.ControllerHost;
@@ -6,9 +6,10 @@ import com.bitwig.extension.controller.api.CueMarkerBank;
 import com.bitwig.extension.controller.api.CueMarker;
 import com.bitwig.extension.controller.api.SceneBank;
 import com.bitwig.extension.controller.api.Scene;
-import com.systemexklusiv.services.APIService;
+import com.bitwig.extension.controller.api.TrackBank;
+import com.bitwig.extension.controller.api.Track;
 
-public class APIServiceImpl implements APIService {
+public class APIServiceImpl {
     
     private static final int CUE_MARKER_BANK_SIZE = 128;
     private static final int SCENE_BANK_SIZE = 128;
@@ -17,14 +18,17 @@ public class APIServiceImpl implements APIService {
     private Arranger arranger;
     private CueMarkerBank cueMarkerBank;
     private SceneBank sceneBank;
+    private TrackBank trackBank;
+    private Track cursorTrack;
     
-    @Override
     public void initialize(ControllerHost host) {
         this.host = host;
         this.arranger = host.createArranger();
         
         setupCueMarkerBank();
         setupSceneBank();
+        setupTrackBank();
+        setupCursorTrack();
     }
     
     private void setupCueMarkerBank() {
@@ -39,6 +43,23 @@ public class APIServiceImpl implements APIService {
         }
     }
     
+    private void setupTrackBank() {
+        trackBank = host.createTrackBank(128, 0, 0, false);
+        
+        for (int i = 0; i < 128; i++) {
+            Track track = trackBank.getItemAt(i);
+            track.exists().markInterested();
+            track.name().markInterested();
+            track.arm().markInterested();
+        }
+    }
+    
+    private void setupCursorTrack() {
+        cursorTrack = host.createCursorTrack(0, 0);
+        cursorTrack.exists().markInterested();
+        cursorTrack.arm().markInterested();
+    }
+    
     private void setupSceneBank() {
         sceneBank = host.createSceneBank(SCENE_BANK_SIZE);
         
@@ -50,17 +71,14 @@ public class APIServiceImpl implements APIService {
         }
     }
     
-    @Override
     public CueMarkerBank getCueMarkerBank() {
         return cueMarkerBank;
     }
     
-    @Override
     public SceneBank getSceneBank() {
         return sceneBank;
     }
     
-    @Override
     public void triggerCueMarker(int index) {
         if (index >= 0 && index < CUE_MARKER_BANK_SIZE) {
             CueMarker cueMarker = cueMarkerBank.getItemAt(index);
@@ -71,7 +89,6 @@ public class APIServiceImpl implements APIService {
         }
     }
     
-    @Override
     public void triggerScene(int index) {
         if (index >= 0 && index < SCENE_BANK_SIZE) {
             Scene scene = sceneBank.getItemAt(index);
@@ -82,7 +99,6 @@ public class APIServiceImpl implements APIService {
         }
     }
     
-    @Override
     public int getCueMarkerCount() {
         int count = 0;
         for (int i = 0; i < CUE_MARKER_BANK_SIZE; i++) {
@@ -93,7 +109,6 @@ public class APIServiceImpl implements APIService {
         return count;
     }
     
-    @Override
     public int getSceneCount() {
         int count = 0;
         for (int i = 0; i < SCENE_BANK_SIZE; i++) {
@@ -104,7 +119,6 @@ public class APIServiceImpl implements APIService {
         return count;
     }
     
-    @Override
     public String getCueMarkerName(int index) {
         if (index >= 0 && index < CUE_MARKER_BANK_SIZE) {
             CueMarker cueMarker = cueMarkerBank.getItemAt(index);
@@ -115,7 +129,6 @@ public class APIServiceImpl implements APIService {
         return "";
     }
     
-    @Override
     public String getSceneName(int index) {
         if (index >= 0 && index < SCENE_BANK_SIZE) {
             Scene scene = sceneBank.getItemAt(index);
@@ -124,5 +137,21 @@ public class APIServiceImpl implements APIService {
             }
         }
         return "";
+    }
+    
+    public void duplicateSelectedTrackToNew() {
+        if (cursorTrack.exists().get()) {
+            boolean wasArmed = cursorTrack.arm().get();
+            
+            cursorTrack.duplicate();
+            
+            if (wasArmed) {
+                cursorTrack.arm().set(false);
+            }
+            
+            host.println("Track duplicated. Original track disarmed, duplicated track ready for recording.");
+        } else {
+            host.println("No track selected for duplication.");
+        }
     }
 }

@@ -1,7 +1,6 @@
-package com.systemexklusiv.services.impl;
+package com.systemexklusiv.services;
 
 import com.bitwig.extension.controller.api.ControllerHost;
-import com.systemexklusiv.services.OSCManager;
 
 import com.illposed.osc.OSCMessage;
 import com.illposed.osc.OSCPortIn;
@@ -14,12 +13,13 @@ import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 
-public class OSCManagerImpl implements OSCManager {
+public class OSCManagerImpl {
 
     public static final String CUE_TRIGGER_OSC_PATH = "/cue/trigger/";
     public static final String SCENE_SEND_NAME_OSC_PATH = "/scene/name/";
     public static final String SCENE_TRIGGER_OSC_PATH = "/scene/trigger/";
     public static final String CUE_SEND_NAME_OSC_PATH = "/cue/name/";
+    public static final String CUE_AMOUNT_PATH = "/cue/amount";
     private ControllerHost host;
     private OSCPortIn oscReceiver;
     private OSCPortOut oscSender;
@@ -29,7 +29,6 @@ public class OSCManagerImpl implements OSCManager {
     private int receivePort;
     private boolean debugMode = false;
     
-    @Override
     public void initialize(ControllerHost host, String sendHost, int sendPort, int receivePort) {
         this.host = host;
         this.sendHost = sendHost;
@@ -55,6 +54,13 @@ public class OSCManagerImpl implements OSCManager {
                 @Override
                 public void acceptMessage(java.util.Date time, OSCMessage message) {
                     handleSceneTrigger(message);
+                }
+            });
+            
+            oscReceiver.addListener("/track/duplicateToNew", new OSCListener() {
+                @Override
+                public void acceptMessage(java.util.Date time, OSCMessage message) {
+                    handleTrackDuplicateToNew(message);
                 }
             });
             
@@ -113,7 +119,6 @@ public class OSCManagerImpl implements OSCManager {
         }
     }
     
-    @Override
     public void sendCueMarkerName(int index, String name) {
         if (oscSender == null) return;
         
@@ -136,7 +141,6 @@ public class OSCManagerImpl implements OSCManager {
         }
     }
     
-    @Override
     public void sendSceneName(int index, String name) {
         if (oscSender == null) return;
         
@@ -154,12 +158,11 @@ public class OSCManagerImpl implements OSCManager {
         }
     }
     
-    @Override
     public void sendCueMarkerCount(int count) {
         if (oscSender == null) return;
         
         try {
-            String address = "/cue/amount";
+            String address = CUE_AMOUNT_PATH;
             OSCMessage message = new OSCMessage(address, Arrays.asList(count));
             oscSender.send(message);
             
@@ -172,7 +175,6 @@ public class OSCManagerImpl implements OSCManager {
         }
     }
     
-    @Override
     public void start() {
         if (oscReceiver != null) {
             try {
@@ -188,7 +190,6 @@ public class OSCManagerImpl implements OSCManager {
         }
     }
     
-    @Override
     public void stop() {
         if (oscReceiver != null) {
             try {
@@ -210,13 +211,27 @@ public class OSCManagerImpl implements OSCManager {
         }
     }
     
-    @Override
     public void setOSCCallback(OSCCallback callback) {
         this.callback = callback;
     }
     
-    @Override
     public void setDebugMode(boolean debug) {
         this.debugMode = debug;
+    }
+    
+    private void handleTrackDuplicateToNew(OSCMessage message) {
+        if (callback == null) return;
+        
+        if (debugMode) {
+            host.println("[DEBUG] Received track duplicate to new request");
+        }
+        
+        callback.onTrackDuplicateToNew();
+    }
+    
+    public interface OSCCallback {
+        void onCueTrigger(int index);
+        void onSceneTrigger(int index);
+        void onTrackDuplicateToNew();
     }
 }
