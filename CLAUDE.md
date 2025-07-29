@@ -50,6 +50,7 @@ The build automatically:
 
 ## Known Issues
 <!-- Document any known issues or limitations -->
+- When using `application.selectAll(); application.deleteSelection();`, this will delete content from ALL tracks, not just the newly copied track. Need a more targeted approach to delete only the recordings of the newly copied track.
 
 ## Future Plans
 Besides the Entrypoint of the Script there should be  Services which retrieves all the Cue Marker informations.
