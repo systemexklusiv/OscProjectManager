@@ -51,6 +51,7 @@ public class APIServiceImpl {
             track.exists().markInterested();
             track.name().markInterested();
             track.arm().markInterested();
+            track.monitorMode().markInterested();
         }
     }
     
@@ -58,6 +59,8 @@ public class APIServiceImpl {
         cursorTrack = host.createCursorTrack(0, 0);
         cursorTrack.exists().markInterested();
         cursorTrack.arm().markInterested();
+        cursorTrack.monitorMode().markInterested();
+        cursorTrack.name().markInterested();
     }
     
     private void setupSceneBank() {
@@ -142,6 +145,8 @@ public class APIServiceImpl {
     public void duplicateSelectedTrackToNew() {
         if (cursorTrack.exists().get()) {
             boolean wasArmed = cursorTrack.arm().get();
+            String monitorModeValue = cursorTrack.monitorMode().get();
+            String originalTrackName = cursorTrack.name().get();
             
             cursorTrack.duplicate();
             
@@ -149,9 +154,37 @@ public class APIServiceImpl {
                 cursorTrack.arm().set(false);
             }
             
-            host.println("Track duplicated. Original track disarmed, duplicated track ready for recording.");
+            host.scheduleTask(() -> {
+                Track duplicatedTrack = findDuplicatedTrack(originalTrackName);
+                if (duplicatedTrack != null) {
+                    duplicatedTrack.monitorMode().set(monitorModeValue);
+                    
+                    if (wasArmed) {
+                        duplicatedTrack.arm().set(true);
+                    }
+                    
+                    host.println("Track duplicated with I/O and monitor settings. Original track disarmed, duplicated track armed for recording.");
+                } else {
+                    host.println("Track duplicated but couldn't locate duplicated track for monitor setup.");
+                    host.println("Track duplicated but couldn't locate duplicated track for monitor setup.");
+                }
+            }, 200);
+            
         } else {
             host.println("No track selected for duplication.");
         }
+    }
+    
+    private Track findDuplicatedTrack(String originalTrackName) {
+        for (int i = 0; i < trackBank.getSizeOfBank(); i++) {
+            Track track = trackBank.getItemAt(i);
+            if (track.exists().get()) {
+                String trackName = track.name().get();
+                if (trackName.contains(originalTrackName) && trackName.contains("Copy")) {
+                    return track;
+                }
+            }
+        }
+        return null;
     }
 }
