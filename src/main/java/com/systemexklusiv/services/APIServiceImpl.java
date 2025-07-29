@@ -9,6 +9,8 @@ import com.bitwig.extension.controller.api.Scene;
 import com.bitwig.extension.controller.api.TrackBank;
 import com.bitwig.extension.controller.api.Track;
 import com.bitwig.extension.controller.api.Application;
+import com.bitwig.extension.controller.api.SourceSelector;
+import com.bitwig.extension.controller.api.SettableBooleanValue;
 
 public class APIServiceImpl {
     
@@ -57,6 +59,11 @@ public class APIServiceImpl {
             track.monitorMode().markInterested();
             track.canHoldNoteData().markInterested();
             track.canHoldAudioData().markInterested();
+            
+            // Setup source selector for input routing
+            SourceSelector sourceSelector = track.sourceSelector();
+            sourceSelector.hasAudioInputSelected().markInterested();
+            sourceSelector.hasNoteInputSelected().markInterested();
         }
     }
     
@@ -68,6 +75,11 @@ public class APIServiceImpl {
         cursorTrack.name().markInterested();
         cursorTrack.canHoldNoteData().markInterested();
         cursorTrack.canHoldAudioData().markInterested();
+        
+        // Setup source selector for input routing
+        SourceSelector sourceSelector = cursorTrack.sourceSelector();
+        sourceSelector.hasAudioInputSelected().markInterested();
+        sourceSelector.hasNoteInputSelected().markInterested();
     }
     
     private void setupApplication() {
@@ -161,6 +173,11 @@ public class APIServiceImpl {
             boolean canHoldNotes = cursorTrack.canHoldNoteData().get();
             boolean canHoldAudio = cursorTrack.canHoldAudioData().get();
             
+            // Capture input routing settings
+            SourceSelector originalSourceSelector = cursorTrack.sourceSelector();
+            boolean hasAudioInput = originalSourceSelector.hasAudioInputSelected().get();
+            boolean hasNoteInput = originalSourceSelector.hasNoteInputSelected().get();
+            
             if (wasArmed) {
                 cursorTrack.arm().set(false);
             }
@@ -183,7 +200,7 @@ public class APIServiceImpl {
             host.scheduleTask(() -> {
                 Track newTrack = findNewestTrack();
                 if (newTrack != null) {
-                    transferTrackSettings(newTrack, monitorModeValue, originalTrackName, wasArmed);
+                    transferTrackSettings(newTrack, monitorModeValue, originalTrackName, wasArmed, hasAudioInput, hasNoteInput);
                 } else {
                     host.println("Failed to locate newly created track.");
                 }
@@ -207,12 +224,35 @@ public class APIServiceImpl {
         return lastTrack;
     }
     
-    private void transferTrackSettings(Track newTrack, String monitorModeValue, String originalTrackName, boolean wasArmed) {
+    private void transferTrackSettings(Track newTrack, String monitorModeValue, String originalTrackName, boolean wasArmed, boolean hasAudioInput, boolean hasNoteInput) {
         newTrack.name().set(originalTrackName + " Copy");
         newTrack.monitorMode().set(monitorModeValue);
         
         if (wasArmed) {
             newTrack.arm().set(true);
+        }
+        
+        // Transfer input routing settings
+        SourceSelector newSourceSelector = newTrack.sourceSelector();
+        host.println("Original track I/O: Audio Input=" + hasAudioInput + ", Note Input=" + hasNoteInput);
+        
+        // Try to set input routing - the BooleanValues might be settable
+        try {
+            if (newSourceSelector.hasAudioInputSelected() instanceof SettableBooleanValue) {
+                ((SettableBooleanValue) newSourceSelector.hasAudioInputSelected()).set(hasAudioInput);
+                host.println("Set audio input: " + hasAudioInput);
+            } else {
+                host.println("Audio input selector is not settable");
+            }
+            
+            if (newSourceSelector.hasNoteInputSelected() instanceof SettableBooleanValue) {
+                ((SettableBooleanValue) newSourceSelector.hasNoteInputSelected()).set(hasNoteInput);
+                host.println("Set note input: " + hasNoteInput);
+            } else {
+                host.println("Note input selector is not settable");
+            }
+        } catch (Exception e) {
+            host.println("Could not set input routing: " + e.getMessage());
         }
         
         // Determine track type for message
