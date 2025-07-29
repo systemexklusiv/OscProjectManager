@@ -8,6 +8,7 @@ import com.bitwig.extension.controller.api.SceneBank;
 import com.bitwig.extension.controller.api.Scene;
 import com.bitwig.extension.controller.api.TrackBank;
 import com.bitwig.extension.controller.api.Track;
+import com.bitwig.extension.controller.api.Application;
 
 public class APIServiceImpl {
     
@@ -20,6 +21,7 @@ public class APIServiceImpl {
     private SceneBank sceneBank;
     private TrackBank trackBank;
     private Track cursorTrack;
+    private Application application;
     
     public void initialize(ControllerHost host) {
         this.host = host;
@@ -29,6 +31,7 @@ public class APIServiceImpl {
         setupSceneBank();
         setupTrackBank();
         setupCursorTrack();
+        setupApplication();
     }
     
     private void setupCueMarkerBank() {
@@ -52,6 +55,8 @@ public class APIServiceImpl {
             track.name().markInterested();
             track.arm().markInterested();
             track.monitorMode().markInterested();
+            track.canHoldNoteData().markInterested();
+            track.canHoldAudioData().markInterested();
         }
     }
     
@@ -61,6 +66,12 @@ public class APIServiceImpl {
         cursorTrack.arm().markInterested();
         cursorTrack.monitorMode().markInterested();
         cursorTrack.name().markInterested();
+        cursorTrack.canHoldNoteData().markInterested();
+        cursorTrack.canHoldAudioData().markInterested();
+    }
+    
+    private void setupApplication() {
+        application = host.createApplication();
     }
     
     private void setupSceneBank() {
@@ -147,44 +158,71 @@ public class APIServiceImpl {
             boolean wasArmed = cursorTrack.arm().get();
             String monitorModeValue = cursorTrack.monitorMode().get();
             String originalTrackName = cursorTrack.name().get();
-            
-            cursorTrack.duplicate();
+            boolean canHoldNotes = cursorTrack.canHoldNoteData().get();
+            boolean canHoldAudio = cursorTrack.canHoldAudioData().get();
             
             if (wasArmed) {
                 cursorTrack.arm().set(false);
             }
             
+            // Create appropriate track type based on original
+            if (canHoldNotes && !canHoldAudio) {
+                // Instrument track
+                application.createInstrumentTrack(-1);
+                host.println("Creating instrument track...");
+            } else if (canHoldAudio && !canHoldNotes) {
+                // Audio track
+                application.createAudioTrack(-1);
+                host.println("Creating audio track...");
+            } else {
+                // Default to audio track if unclear
+                application.createAudioTrack(-1);
+                host.println("Creating default audio track...");
+            }
+            
             host.scheduleTask(() -> {
-                Track duplicatedTrack = findDuplicatedTrack(originalTrackName);
-                if (duplicatedTrack != null) {
-                    duplicatedTrack.monitorMode().set(monitorModeValue);
-                    
-                    if (wasArmed) {
-                        duplicatedTrack.arm().set(true);
-                    }
-                    
-                    host.println("Track duplicated with I/O and monitor settings. Original track disarmed, duplicated track armed for recording.");
+                Track newTrack = findNewestTrack();
+                if (newTrack != null) {
+                    transferTrackSettings(newTrack, monitorModeValue, originalTrackName, wasArmed);
                 } else {
-                    host.println("Track duplicated but couldn't locate duplicated track for monitor setup.");
-                    host.println("Track duplicated but couldn't locate duplicated track for monitor setup.");
+                    host.println("Failed to locate newly created track.");
                 }
-            }, 200);
+            }, 300);
             
         } else {
             host.println("No track selected for duplication.");
         }
     }
     
-    private Track findDuplicatedTrack(String originalTrackName) {
-        for (int i = 0; i < trackBank.getSizeOfBank(); i++) {
+    private Track findNewestTrack() {
+        // Find the last existing track in the track bank
+        Track lastTrack = null;
+        for (int i = trackBank.getSizeOfBank() - 1; i >= 0; i--) {
             Track track = trackBank.getItemAt(i);
             if (track.exists().get()) {
-                String trackName = track.name().get();
-                if (trackName.contains(originalTrackName) && trackName.contains("Copy")) {
-                    return track;
-                }
+                lastTrack = track;
+                break;
             }
         }
-        return null;
+        return lastTrack;
+    }
+    
+    private void transferTrackSettings(Track newTrack, String monitorModeValue, String originalTrackName, boolean wasArmed) {
+        newTrack.name().set(originalTrackName + " Copy");
+        newTrack.monitorMode().set(monitorModeValue);
+        
+        if (wasArmed) {
+            newTrack.arm().set(true);
+        }
+        
+        // Determine track type for message
+        String trackType = "track";
+        if (newTrack.canHoldNoteData().get() && !newTrack.canHoldAudioData().get()) {
+            trackType = "instrument track";
+        } else if (newTrack.canHoldAudioData().get() && !newTrack.canHoldNoteData().get()) {
+            trackType = "audio track";
+        }
+        
+        host.println("New clean " + trackType + " created. Settings transferred and ready for recording.");
     }
 }
