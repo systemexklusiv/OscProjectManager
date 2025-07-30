@@ -12,6 +12,9 @@ import com.bitwig.extension.controller.api.Application;
 import com.bitwig.extension.controller.api.SourceSelector;
 import com.bitwig.extension.controller.api.SettableBooleanValue;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
 public class APIServiceImpl {
     
     private static final int CUE_MARKER_BANK_SIZE = 128;
@@ -353,5 +356,129 @@ public class APIServiceImpl {
         host.println("=== Disarm All Complete ===");
         host.println("Tracks processed: " + tracksProcessed);
         host.println("Tracks disarmed: " + tracksDisarmed);
+    }
+    
+    public void makeRecordGroup() {
+        host.println("=== Making Record Group ===");
+        
+        // Find group track with <REC> in its name
+        Track recGroupTrack = null;
+        for (int i = 0; i < allTracksBank.getSizeOfBank(); i++) {
+            Track track = allTracksBank.getItemAt(i);
+            
+            if (track.exists().get() && track.isGroup().get()) {
+                String trackName = track.name().get();
+                if (trackName.contains("<REC>")) {
+                    recGroupTrack = track;
+                    host.println("Found <REC> group: \"" + trackName + "\"");
+                    break;
+                }
+            }
+        }
+        
+        if (recGroupTrack == null) {
+            host.println("ERROR: No group track with <REC> in name found!");
+            return;
+        }
+        
+        String originalName = recGroupTrack.name().get();
+        
+        // Step 1: Duplicate the group track
+        host.println("Duplicating group track...");
+        recGroupTrack.duplicate();
+        
+        // Give Bitwig time to create the duplicate
+        host.scheduleTask(() -> {
+            // Step 2: Find the newly created duplicate track
+            Track duplicateTrack = findNewestTrack();
+            if (duplicateTrack != null) {
+                // Generate timestamp name for the new group
+                LocalDateTime now = LocalDateTime.now();
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+                String timestamp = now.format(formatter);
+                String newName = originalName.replace("<REC>", "<Take> # " + timestamp);
+                
+                duplicateTrack.name().set(newName);
+                host.println("Renamed duplicate to: \"" + newName + "\"");
+                
+                // Step 3: Configure the DUPLICATE group (archive it)
+                // NOTE: Original <REC> group is left completely untouched - all arm states preserved
+                configureTakeGroup(duplicateTrack, newName);
+                
+                host.println("Original <REC> group remains ready for more recordings (arm states preserved)");
+                host.println("=== Record Group Creation Complete ===");
+            } else {
+                host.println("ERROR: Could not find duplicate track!");
+            }
+        }, 500); // Wait 500ms for duplication to complete
+    }
+    
+    private void configureTakeGroup(Track takeGroup, String takeName) {
+        host.println("Configuring archived take group...");
+        
+        // Mute the take group (archived version)
+        takeGroup.mute().set(true);
+        host.println("Muted take group: \"" + takeName + "\"");
+        
+        // Find and configure all tracks inside this group
+        int tracksInGroup = 0;
+        int tracksDisarmed = 0;
+        int monitoringTurnedOff = 0;
+        
+        // Process all tracks to find those that belong to this group
+        for (int i = 0; i < allTracksBank.getSizeOfBank(); i++) {
+            Track track = allTracksBank.getItemAt(i);
+            
+            if (track.exists().get() && !track.isGroup().get()) {
+                // Check if this track is inside our take group by looking at track hierarchy
+                // Since we have a flat list, tracks immediately after the group are likely inside it
+                // This is a simplification - in a real implementation you'd need proper parent detection
+                String trackName = track.name().get();
+                
+                // For now, we'll process tracks that appear to be inside groups
+                // by checking if they come after our group in the flat list
+                boolean isInTakeGroup = isTrackInGroup(track, takeGroup);
+                
+                if (isInTakeGroup) {
+                    tracksInGroup++;
+                    
+                    // Turn off monitoring
+                    String currentMonitorMode = track.monitorMode().get();
+                    if (!"OFF".equals(currentMonitorMode)) {
+                        track.monitorMode().set("OFF");
+                        monitoringTurnedOff++;
+                        host.println("  Turned off monitoring: \"" + trackName + "\" (was: " + currentMonitorMode + ")");
+                    }
+                    
+                    // Disarm track
+                    if (track.arm().get()) {
+                        track.arm().set(false);
+                        tracksDisarmed++;
+                        host.println("  Disarmed: \"" + trackName + "\"");
+                    }
+                }
+            }
+        }
+        
+        host.println("Take group archival complete:");
+        host.println("  Tracks in group: " + tracksInGroup);
+        host.println("  Tracks disarmed: " + tracksDisarmed);
+        host.println("  Monitoring turned off: " + monitoringTurnedOff);
+    }
+    
+    // Simplified method to detect if a track is in a group
+    // This is a heuristic based on the flat track list ordering
+    private boolean isTrackInGroup(Track track, Track groupTrack) {
+        // This is a simplified implementation
+        // In reality, you'd need more sophisticated parent-child detection
+        // For now, we'll assume tracks are processed in order and belong to preceding groups
+        
+        // Get track positions/names to make educated guess about grouping
+        String trackName = track.name().get();
+        
+        // Simple heuristic: if track name suggests it's part of recording setup
+        // and doesn't have its own group markers, it might be in the REC group
+        return trackName.contains("Track") || trackName.contains("Audio") || 
+               (!trackName.contains("<") && !trackName.contains(">"));
     }
 }

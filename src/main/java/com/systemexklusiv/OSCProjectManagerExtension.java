@@ -187,6 +187,11 @@ public class OSCProjectManagerExtension extends ControllerExtension
           public void onAllArmOff() {
               apiService.disarmAllTracks();
           }
+          
+          @Override
+          public void onMakeRecordGroup() {
+              apiService.makeRecordGroup();
+          }
       });
    }
    

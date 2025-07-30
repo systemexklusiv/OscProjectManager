@@ -78,6 +78,13 @@ public class OSCManagerImpl {
                 }
             });
             
+            oscReceiver.addListener("/track/makeRecordGroup", new OSCListener() {
+                @Override
+                public void acceptMessage(java.util.Date time, OSCMessage message) {
+                    handleMakeRecordGroup(message);
+                }
+            });
+            
         } catch (SocketException e) {
             host.errorln("Failed to create OSC receiver on port " + receivePort + ": " + e.getMessage());
         }
@@ -263,11 +270,22 @@ public class OSCManagerImpl {
         callback.onAllArmOff();
     }
     
+    private void handleMakeRecordGroup(OSCMessage message) {
+        if (callback == null) return;
+        
+        if (debugMode) {
+            host.println("[DEBUG] Received make record group request");
+        }
+        
+        callback.onMakeRecordGroup();
+    }
+    
     public interface OSCCallback {
         void onCueTrigger(int index);
         void onSceneTrigger(int index);
         void onTrackDuplicateToNew();
         void onAllMonitoringOff();
         void onAllArmOff();
+        void onMakeRecordGroup();
     }
 }

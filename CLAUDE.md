@@ -58,3 +58,13 @@ Another Service will be there which retrieves all the scene informations. Anothe
 by the Cue Marker and Scene servives to send this informtion out via OSC in UDP. On the receiving part of this scripts there will be
 a listener implemented in the OSCManager which listens for incomming OSC messages in order to trigger Cue Marker or Scenes. The OSCManager has
 an instance of another Service the API Service which interacts with Bitwig and in the end triggers Cue Markers and Scenes with the use of the API.
+
+## Endpoint Implementation Ideas
+- Add a new endpoint "track/makeRecordGroup" which does the following:
+  * Looks for a Bitwig group track with "<REC>" in its name
+  * When found, duplicates the track using Bitwig API's duplicate track function
+  * On the original source group:
+    - Turn all monitor settings to off
+    - Unarmed all tracks inside this group
+    - Mute the group itself
+  * Name the new group track as "<Take> # " with current date appended in format: YYYY-MM-DD-Hour-Minute
