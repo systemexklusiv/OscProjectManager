@@ -22,6 +22,7 @@ public class APIServiceImpl {
     private CueMarkerBank cueMarkerBank;
     private SceneBank sceneBank;
     private TrackBank trackBank;
+    private TrackBank allTracksBank; // Flat bank to access all tracks including nested ones
     private Track cursorTrack;
     private Application application;
     
@@ -32,6 +33,7 @@ public class APIServiceImpl {
         setupCueMarkerBank();
         setupSceneBank();
         setupTrackBank();
+        setupAllTracksBank();
         setupCursorTrack();
         setupApplication();
     }
@@ -59,6 +61,29 @@ public class APIServiceImpl {
             track.monitorMode().markInterested();
             track.canHoldNoteData().markInterested();
             track.canHoldAudioData().markInterested();
+            track.isGroup().markInterested();
+            
+            // Setup source selector for input routing
+            SourceSelector sourceSelector = track.sourceSelector();
+            sourceSelector.hasAudioInputSelected().markInterested();
+            sourceSelector.hasNoteInputSelected().markInterested();
+        }
+    }
+    
+    private void setupAllTracksBank() {
+        // Create a flat track bank that includes ALL tracks (including nested ones)
+        allTracksBank = host.createTrackBank(512, 0, 0, true); // Large flat bank with hasFlatTrackList=true
+        
+        for (int i = 0; i < 512; i++) {
+            Track track = allTracksBank.getItemAt(i);
+            track.exists().markInterested();
+            track.name().markInterested();
+            track.arm().markInterested();
+            track.monitorMode().markInterested();
+            track.isMonitoring().markInterested();
+            track.canHoldNoteData().markInterested();
+            track.canHoldAudioData().markInterested();
+            track.isGroup().markInterested();
             
             // Setup source selector for input routing
             SourceSelector sourceSelector = track.sourceSelector();
@@ -225,6 +250,7 @@ public class APIServiceImpl {
     }
     
     private void transferTrackSettings(Track newTrack, String monitorModeValue, String originalTrackName, boolean wasArmed, boolean hasAudioInput, boolean hasNoteInput) {
+
         newTrack.name().set(originalTrackName + " Copy");
         newTrack.monitorMode().set(monitorModeValue);
         
@@ -232,28 +258,23 @@ public class APIServiceImpl {
             newTrack.arm().set(true);
         }
         
-        // Transfer input routing settings
+        // Log I/O routing and monitoring information
         SourceSelector newSourceSelector = newTrack.sourceSelector();
+        host.println("=== Track Settings Analysis ===");
         host.println("Original track I/O: Audio Input=" + hasAudioInput + ", Note Input=" + hasNoteInput);
+        host.println("New track I/O:      Audio Input=" + newSourceSelector.hasAudioInputSelected().get() + 
+                     ", Note Input=" + newSourceSelector.hasNoteInputSelected().get());
+        host.println("Monitor mode transferred: " + monitorModeValue + " -> " + newTrack.monitorMode().get());
+        host.println("Monitoring active: " + newTrack.isMonitoring().get());
         
-        // Try to set input routing - the BooleanValues might be settable
-        try {
-            if (newSourceSelector.hasAudioInputSelected() instanceof SettableBooleanValue) {
-                ((SettableBooleanValue) newSourceSelector.hasAudioInputSelected()).set(hasAudioInput);
-                host.println("Set audio input: " + hasAudioInput);
-            } else {
-                host.println("Audio input selector is not settable");
-            }
-            
-            if (newSourceSelector.hasNoteInputSelected() instanceof SettableBooleanValue) {
-                ((SettableBooleanValue) newSourceSelector.hasNoteInputSelected()).set(hasNoteInput);
-                host.println("Set note input: " + hasNoteInput);
-            } else {
-                host.println("Note input selector is not settable");
-            }
-        } catch (Exception e) {
-            host.println("Could not set input routing: " + e.getMessage());
-        }
+        // Check if the SourceSelector values are settable
+        host.println("Audio input settable: " + (newSourceSelector.hasAudioInputSelected() instanceof SettableBooleanValue));
+        host.println("Note input settable:  " + (newSourceSelector.hasNoteInputSelected() instanceof SettableBooleanValue));
+        
+        // TODO: I/O routing transfer not yet implemented
+        // The Bitwig API SourceSelector appears to be read-only
+        // Need to investigate action IDs or additional API methods for I/O routing
+        host.println("I/O routing transfer: Not yet implemented (API limitation)");
         
         // Determine track type for message
         String trackType = "track";
@@ -264,5 +285,73 @@ public class APIServiceImpl {
         }
         
         host.println("New clean " + trackType + " created. Settings transferred and ready for recording.");
+    }
+    
+    public void turnOffAllMonitoringExceptGrooved() {
+        int tracksProcessed = 0;
+        int monitoringTurnedOff = 0;
+        int groovedTracksSkipped = 0;
+        
+        host.println("=== Turning off monitoring for all audio tracks (except <G> group tracks) ===");
+        
+        // Process all tracks from the flat track bank (includes nested tracks)
+        for (int i = 0; i < allTracksBank.getSizeOfBank(); i++) {
+            Track track = allTracksBank.getItemAt(i);
+            
+            if (track.exists().get()) {
+                tracksProcessed++;
+                String trackName = track.name().get();
+                boolean canHoldAudio = track.canHoldAudioData().get();
+                String currentMonitorMode = track.monitorMode().get();
+                
+                // Check if track is audio track and doesn't contain <G>
+                if (canHoldAudio && !trackName.contains("<G>")) {
+                    // Turn off monitoring
+                    track.monitorMode().set("OFF");
+                    monitoringTurnedOff++;
+                    host.println("Turned OFF monitoring: \"" + trackName + "\" (was: " + currentMonitorMode + ")");
+                } else if (trackName.contains("<G>")) {
+                    groovedTracksSkipped++;
+                    host.println("Skipped <G> group track: \"" + trackName + "\" (monitoring: " + currentMonitorMode + ")");
+                } else if (!canHoldAudio) {
+                    host.println("Skipped non-audio track: \"" + trackName + "\"");
+                }
+            }
+        }
+        
+        host.println("=== Monitoring Off Complete ===");
+        host.println("Tracks processed: " + tracksProcessed);
+        host.println("Monitoring turned off: " + monitoringTurnedOff);
+        host.println("<G> group tracks skipped: " + groovedTracksSkipped);
+    }
+    
+    public void disarmAllTracks() {
+        int tracksProcessed = 0;
+        int tracksDisarmed = 0;
+        
+        host.println("=== Disarming all tracks (audio and instrument) ===");
+        
+        // Process all tracks from the flat track bank (includes nested tracks)
+        for (int i = 0; i < allTracksBank.getSizeOfBank(); i++) {
+            Track track = allTracksBank.getItemAt(i);
+            
+            if (track.exists().get()) {
+                tracksProcessed++;
+                String trackName = track.name().get();
+                boolean isArmed = track.arm().get();
+                
+                if (isArmed) {
+                    track.arm().set(false);
+                    tracksDisarmed++;
+                    host.println("Disarmed: \"" + trackName + "\"");
+                } else {
+                    host.println("Already disarmed: \"" + trackName + "\"");
+                }
+            }
+        }
+        
+        host.println("=== Disarm All Complete ===");
+        host.println("Tracks processed: " + tracksProcessed);
+        host.println("Tracks disarmed: " + tracksDisarmed);
     }
 }

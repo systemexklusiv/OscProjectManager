@@ -64,6 +64,20 @@ public class OSCManagerImpl {
                 }
             });
             
+            oscReceiver.addListener("/track/allMonitoringOff", new OSCListener() {
+                @Override
+                public void acceptMessage(java.util.Date time, OSCMessage message) {
+                    handleAllMonitoringOff(message);
+                }
+            });
+            
+            oscReceiver.addListener("/track/allArmOff", new OSCListener() {
+                @Override
+                public void acceptMessage(java.util.Date time, OSCMessage message) {
+                    handleAllArmOff(message);
+                }
+            });
+            
         } catch (SocketException e) {
             host.errorln("Failed to create OSC receiver on port " + receivePort + ": " + e.getMessage());
         }
@@ -229,9 +243,31 @@ public class OSCManagerImpl {
         callback.onTrackDuplicateToNew();
     }
     
+    private void handleAllMonitoringOff(OSCMessage message) {
+        if (callback == null) return;
+        
+        if (debugMode) {
+            host.println("[DEBUG] Received all monitoring off request");
+        }
+        
+        callback.onAllMonitoringOff();
+    }
+    
+    private void handleAllArmOff(OSCMessage message) {
+        if (callback == null) return;
+        
+        if (debugMode) {
+            host.println("[DEBUG] Received all arm off request");
+        }
+        
+        callback.onAllArmOff();
+    }
+    
     public interface OSCCallback {
         void onCueTrigger(int index);
         void onSceneTrigger(int index);
         void onTrackDuplicateToNew();
+        void onAllMonitoringOff();
+        void onAllArmOff();
     }
 }

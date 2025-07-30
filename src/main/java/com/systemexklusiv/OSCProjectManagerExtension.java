@@ -177,6 +177,16 @@ public class OSCProjectManagerExtension extends ControllerExtension
           public void onTrackDuplicateToNew() {
               apiService.duplicateSelectedTrackToNew();
           }
+          
+          @Override
+          public void onAllMonitoringOff() {
+              apiService.turnOffAllMonitoringExceptGrooved();
+          }
+          
+          @Override
+          public void onAllArmOff() {
+              apiService.disarmAllTracks();
+          }
       });
    }
    
@@ -184,12 +194,6 @@ public class OSCProjectManagerExtension extends ControllerExtension
       oscManager.start();
       cueMarkerService.startMonitoring();
       sceneService.startMonitoring();
-      
-      // Test message to verify OSC is working - delay it a bit
-//      getHost().scheduleTask(() -> {
-//          oscManager.sendCueMarkerName(99, "TEST_MESSAGE_ON_STARTUP");
-//          oscManager.sendCueMarkerName(100, "SECOND_TEST_MESSAGE");
-//      }, 1000); // 1 second delay
    }
 
    @Override
