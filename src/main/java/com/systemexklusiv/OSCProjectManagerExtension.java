@@ -180,7 +180,7 @@ public class OSCProjectManagerExtension extends ControllerExtension
           
           @Override
           public void onAllMonitoringOff() {
-              apiService.turnOffAllMonitoringExceptGrooved();
+              apiService.turnOffAllMonitoringExceptGroups();
           }
           
           @Override

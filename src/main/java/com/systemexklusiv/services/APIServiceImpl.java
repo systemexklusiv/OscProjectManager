@@ -14,6 +14,8 @@ import com.bitwig.extension.controller.api.SettableBooleanValue;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.ArrayList;
 
 public class APIServiceImpl {
     
@@ -290,7 +292,7 @@ public class APIServiceImpl {
         host.println("New clean " + trackType + " created. Settings transferred and ready for recording.");
     }
     
-    public void turnOffAllMonitoringExceptGrooved() {
+    public void turnOffAllMonitoringExceptGroups() {
         int tracksProcessed = 0;
         int monitoringTurnedOff = 0;
         int groovedTracksSkipped = 0;
@@ -361,124 +363,307 @@ public class APIServiceImpl {
     public void makeRecordGroup() {
         host.println("=== Making Record Group ===");
         
-        // Find group track with <REC> in its name
-        Track recGroupTrack = null;
-        for (int i = 0; i < allTracksBank.getSizeOfBank(); i++) {
-            Track track = allTracksBank.getItemAt(i);
-            
-            if (track.exists().get() && track.isGroup().get()) {
-                String trackName = track.name().get();
-                if (trackName.contains("<REC>")) {
-                    recGroupTrack = track;
-                    host.println("Found <REC> group: \"" + trackName + "\"");
-                    break;
-                }
-            }
-        }
+        // Step 1: Create timestamp with milliseconds for unique ordering
+        LocalDateTime now = LocalDateTime.now();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss-SSS");
+        String timestamp = now.format(formatter);
         
-        if (recGroupTrack == null) {
-            host.println("ERROR: No group track with <REC> in name found!");
-            return;
-        }
+        // Step 2: Find all tracks with <R> and rename them to archived names first
+        List<Track> rTracks = new ArrayList<>();
+        List<String> originalNames = new ArrayList<>();
         
-        String originalName = recGroupTrack.name().get();
-        
-        // Step 1: Duplicate the group track
-        host.println("Duplicating group track...");
-        recGroupTrack.duplicate();
-        
-        // Give Bitwig time to create the duplicate
-        host.scheduleTask(() -> {
-            // Step 2: Find the newly created duplicate track
-            Track duplicateTrack = findNewestTrack();
-            if (duplicateTrack != null) {
-                // Generate timestamp name for the new group
-                LocalDateTime now = LocalDateTime.now();
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-                String timestamp = now.format(formatter);
-                String newName = originalName.replace("<REC>", "<Take> # " + timestamp);
-                
-                duplicateTrack.name().set(newName);
-                host.println("Renamed duplicate to: \"" + newName + "\"");
-                
-                // Step 3: Configure the DUPLICATE group (archive it)
-                // NOTE: Original <REC> group is left completely untouched - all arm states preserved
-                configureTakeGroup(duplicateTrack, newName);
-                
-                host.println("Original <REC> group remains ready for more recordings (arm states preserved)");
-                host.println("=== Record Group Creation Complete ===");
-            } else {
-                host.println("ERROR: Could not find duplicate track!");
-            }
-        }, 500); // Wait 500ms for duplication to complete
-    }
-    
-    private void configureTakeGroup(Track takeGroup, String takeName) {
-        host.println("Configuring archived take group...");
-        
-        // Mute the take group (archived version)
-        takeGroup.mute().set(true);
-        host.println("Muted take group: \"" + takeName + "\"");
-        
-        // Find and configure all tracks inside this group
-        int tracksInGroup = 0;
-        int tracksDisarmed = 0;
-        int monitoringTurnedOff = 0;
-        
-        // Process all tracks to find those that belong to this group
         for (int i = 0; i < allTracksBank.getSizeOfBank(); i++) {
             Track track = allTracksBank.getItemAt(i);
             
             if (track.exists().get() && !track.isGroup().get()) {
-                // Check if this track is inside our take group by looking at track hierarchy
-                // Since we have a flat list, tracks immediately after the group are likely inside it
-                // This is a simplification - in a real implementation you'd need proper parent detection
                 String trackName = track.name().get();
-                
-                // For now, we'll process tracks that appear to be inside groups
-                // by checking if they come after our group in the flat list
-                boolean isInTakeGroup = isTrackInGroup(track, takeGroup);
-                
-                if (isInTakeGroup) {
-                    tracksInGroup++;
+                if (trackName.contains("<R>")) {
+                    host.println("Found track to archive: \"" + trackName + "\"");
                     
-                    // Turn off monitoring
-                    String currentMonitorMode = track.monitorMode().get();
-                    if (!"OFF".equals(currentMonitorMode)) {
-                        track.monitorMode().set("OFF");
-                        monitoringTurnedOff++;
-                        host.println("  Turned off monitoring: \"" + trackName + "\" (was: " + currentMonitorMode + ")");
-                    }
+                    // Store original name and track reference
+                    originalNames.add(trackName);
+                    rTracks.add(track);
+
+                    // Rename to archived format immediately
+                    String baseName = trackName.replace("<R>", "").trim();
+                    String archivedName = "<T>_" + timestamp + "_" + baseName;
+                    track.name().set(archivedName);
                     
-                    // Disarm track
-                    if (track.arm().get()) {
-                        track.arm().set(false);
-                        tracksDisarmed++;
-                        host.println("  Disarmed: \"" + trackName + "\"");
-                    }
+                    host.println("  Renamed to archived: \"" + archivedName + "\"");
                 }
             }
         }
         
-        host.println("Take group archival complete:");
-        host.println("  Tracks in group: " + tracksInGroup);
-        host.println("  Tracks disarmed: " + tracksDisarmed);
-        host.println("  Monitoring turned off: " + monitoringTurnedOff);
+        if (rTracks.isEmpty()) {
+            host.println("ERROR: No tracks with <R> in name found!");
+            return;
+        }
+        
+        host.println("Renamed " + rTracks.size() + " tracks to archived format");
+        
+        // Step 3: Wait a moment, then duplicate and restore
+        host.scheduleTask(() -> {
+            duplicateAndRestoreRTracks(rTracks, originalNames);
+        }, 2000); // Wait for renames to complete
     }
     
-    // Simplified method to detect if a track is in a group
-    // This is a heuristic based on the flat track list ordering
-    private boolean isTrackInGroup(Track track, Track groupTrack) {
-        // This is a simplified implementation
-        // In reality, you'd need more sophisticated parent-child detection
-        // For now, we'll assume tracks are processed in order and belong to preceding groups
+    private void duplicateAndRestoreRTracks(List<Track> archivedTracks, List<String> originalNames) {
+        host.println("=== Duplicating and Restoring R Tracks ===");
         
-        // Get track positions/names to make educated guess about grouping
-        String trackName = track.name().get();
+        // Step 1: Duplicate all the archived tracks first
+        for (int i = 0; i < archivedTracks.size(); i++) {
+            Track archivedTrack = archivedTracks.get(i);
+            String originalName = originalNames.get(i);
+            
+            host.println("Duplicating archived track: \"" + archivedTrack.name().get() + "\"");
+            archivedTrack.duplicate();
+        }
         
-        // Simple heuristic: if track name suggests it's part of recording setup
-        // and doesn't have its own group markers, it might be in the REC group
-        return trackName.contains("Track") || trackName.contains("Audio") || 
-               (!trackName.contains("<") && !trackName.contains(">"));
+        // Step 2: Wait longer for duplications, then configure and rename
+        host.scheduleTask(() -> {
+            configureArchivesAndRenameDuplicates(archivedTracks, originalNames);
+        }, 1500); // Wait longer for duplications to complete
+    }
+    
+    private void configureArchivesAndRenameDuplicates(List<Track> archivedTracks, List<String> originalNames) {
+        host.println("=== Configuring Archives and Renaming Duplicates ===");
+        
+        int processedCount = 0;
+        
+        // First, let's see what tracks we have now
+        host.println("Scanning all tracks to find duplicates...");
+        
+        // Debug: List all tracks in the bank
+        host.println("=== DEBUG: All tracks in bank ===");
+        int totalTracks = 0;
+        for (int i = 0; i < allTracksBank.getSizeOfBank(); i++) {
+            Track track = allTracksBank.getItemAt(i);
+            if (track.exists().get() && !track.isGroup().get()) {
+                totalTracks++;
+                host.println("  Track " + i + ": \"" + track.name().get() + "\"");
+            }
+        }
+        host.println("Total non-group tracks found: " + totalTracks);
+        host.println("=== END DEBUG ===");
+        
+        for (int i = 0; i < archivedTracks.size(); i++) {
+            Track archivedTrack = archivedTracks.get(i);
+            String originalName = originalNames.get(i);
+            String archivedName = archivedTrack.name().get();
+            
+            host.println("Processing: Original archived track = \"" + archivedName + "\"");
+            
+            // Configure the archived track (mute, disarm, turn off monitoring)
+            archivedTrack.mute().set(true);
+            if (archivedTrack.arm().get()) {
+                archivedTrack.arm().set(false);
+            }
+            String currentMonitorMode = archivedTrack.monitorMode().get();
+            if (!"OFF".equals(currentMonitorMode)) {
+                archivedTrack.monitorMode().set("OFF");
+            }
+            host.println("  Configured archived track: muted, disarmed, monitoring off");
+            
+            // Find all tracks with the same archived name
+            int matchCount = 0;
+            Track duplicateTrack = null;
+            
+            for (int j = 0; j < allTracksBank.getSizeOfBank(); j++) {
+                Track track = allTracksBank.getItemAt(j);
+                
+                if (track.exists().get() && !track.isGroup().get()) {
+                    String trackName = track.name().get();
+                    if (archivedName.equals(trackName)) {
+                        matchCount++;
+                        host.println("  Found match " + matchCount + ": \"" + trackName + "\" (same as original? " + track.equals(archivedTrack) + ")");
+                        
+                        if (!track.equals(archivedTrack)) {
+                            duplicateTrack = track;
+                        }
+                    }
+                }
+            }
+            
+            if (duplicateTrack != null) {
+                host.println("  Found duplicate track, renaming to: \"" + originalName + "\"");
+                duplicateTrack.name().set(originalName);
+                
+                // Ensure new track is ready for recording (unmuted)
+                duplicateTrack.mute().set(false);
+                host.println("  New track ready for recording: \"" + originalName + "\"");
+                
+                processedCount++;
+            } else {
+                host.println("  ERROR: Could not find duplicate for: \"" + archivedName + "\" (found " + matchCount + " total matches)");
+            }
+        }
+        
+        host.println("=== Record Group Creation Complete ===");
+        host.println("Processed " + processedCount + "/" + originalNames.size() + " tracks");
+        host.println("Archived tracks are muted and monitoring off");
+        host.println("New <R> tracks are ready for more recordings");
+    }
+    
+    private Track findLastTrackWithName(String targetName, Track excludeTrack) {
+        // Find the last track in the bank with the target name, excluding the specified track
+        Track lastMatch = null;
+        for (int i = 0; i < allTracksBank.getSizeOfBank(); i++) {
+            Track track = allTracksBank.getItemAt(i);
+            
+            if (track.exists().get() && 
+                !track.isGroup().get() && 
+                !track.equals(excludeTrack) &&
+                targetName.equals(track.name().get())) {
+                lastMatch = track; // Keep finding, the last one should be the newest
+            }
+        }
+        return lastMatch;
+    }
+    
+    private void configureDuplicatedTracks(List<String> originalTrackNames, String timestamp) {
+        host.println("=== Configuring Duplicated Tracks ===");
+        host.println("Looking for duplicates of " + originalTrackNames.size() + " tracks...");
+        
+        int duplicatesProcessed = 0;
+        
+        for (String originalName : originalTrackNames) {
+            host.println("Searching for duplicate of: \"" + originalName + "\"");
+            
+            // Find the duplicate track - look for a track with the same name but different instance
+            Track duplicateTrack = null;
+            int matchCount = 0;
+            
+            for (int i = 0; i < allTracksBank.getSizeOfBank(); i++) {
+                Track track = allTracksBank.getItemAt(i);
+                
+                if (track.exists().get() && !track.isGroup().get()) {
+                    String trackName = track.name().get();
+                    if (originalName.equals(trackName)) {
+                        matchCount++;
+                        if (matchCount == 2) {
+                            // The second match should be the duplicate
+                            duplicateTrack = track;
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            if (duplicateTrack != null) {
+                host.println("  Found duplicate track: \"" + duplicateTrack.name().get() + "\"");
+                
+                // Rename the duplicate: <R>TrackName -> <T>_YYYY-MM-DD-HH-MM_TrackName
+                String baseName = originalName.replace("<R>", "").trim();
+                String archivedName = "<T>_" + timestamp + "_" + baseName;
+                
+                duplicateTrack.name().set(archivedName);
+                host.println("  Renamed to: \"" + archivedName + "\"");
+                
+                // Configure the archived duplicate
+                String currentMonitorMode = duplicateTrack.monitorMode().get();
+                if (!"OFF".equals(currentMonitorMode)) {
+                    duplicateTrack.monitorMode().set("OFF");
+                    host.println("  Turned off monitoring (was: " + currentMonitorMode + ")");
+                }
+                
+                if (duplicateTrack.arm().get()) {
+                    duplicateTrack.arm().set(false);
+                    host.println("  Disarmed track");
+                }
+                
+                // Mute the archived track
+                duplicateTrack.mute().set(true);
+                host.println("  Muted archived track");
+                
+                duplicatesProcessed++;
+                host.println("  ✓ Completed: \"" + originalName + "\"");
+            } else {
+                host.println("  ERROR: Could not find duplicate for: \"" + originalName + "\" (found " + matchCount + " matches)");
+            }
+        }
+        
+        host.println("=== Record Group Creation Complete ===");
+        host.println("Original <R> tracks remain unchanged and ready for more recordings");
+        host.println("Archived " + duplicatesProcessed + "/" + originalTrackNames.size() + " tracks with timestamp: " + timestamp);
+    }
+    
+    private void duplicateAndArchiveRTracks(List<Track> tracksToArchive, String timestamp) {
+        host.println("Processing " + tracksToArchive.size() + " tracks for archival...");
+        
+        // Process tracks one by one sequentially to avoid confusion
+        processNextRTrack(tracksToArchive, 0, timestamp);
+    }
+    
+    private void processNextRTrack(List<Track> tracksToArchive, int index, String timestamp) {
+        if (index >= tracksToArchive.size()) {
+            // All tracks processed
+            host.println("=== Record Group Creation Complete ===");
+            host.println("Original <R> tracks remain unchanged and ready for more recordings");
+            host.println("Archived " + tracksToArchive.size() + " tracks with timestamp: " + timestamp);
+            return;
+        }
+        
+        Track originalTrack = tracksToArchive.get(index);
+        String originalName = originalTrack.name().get();
+        
+        host.println("Processing track " + (index + 1) + "/" + tracksToArchive.size() + ": \"" + originalName + "\"");
+        
+        // Duplicate the track
+        originalTrack.duplicate();
+        
+        // Wait, then find and configure the duplicate
+        host.scheduleTask(() -> {
+            // Instead of findNewestTrack, look for a track with the same name as original
+            Track duplicateTrack = findTrackByName(originalName, originalTrack);
+            
+            if (duplicateTrack != null) {
+                host.println("  Found duplicate track: \"" + duplicateTrack.name().get() + "\"");
+                
+                // Rename the duplicate track: <R>TrackName -> <T>_YYYY-MM-DD-HH-MM_TrackName
+                String baseName = originalName.replace("<R>", "").trim();
+                String archivedName = "<T>_" + timestamp + "_" + baseName;
+                
+                duplicateTrack.name().set(archivedName);
+                host.println("  Renamed to: \"" + archivedName + "\"");
+                
+                // Configure the archived duplicate
+                String currentMonitorMode = duplicateTrack.monitorMode().get();
+                if (!"OFF".equals(currentMonitorMode)) {
+                    duplicateTrack.monitorMode().set("OFF");
+                    host.println("  Turned off monitoring (was: " + currentMonitorMode + ")");
+                }
+                
+                if (duplicateTrack.arm().get()) {
+                    duplicateTrack.arm().set(false);
+                    host.println("  Disarmed track");
+                }
+                
+                // Mute the archived track
+                duplicateTrack.mute().set(true);
+                host.println("  Muted archived track");
+                
+                host.println("  ✓ Completed: \"" + originalName + "\"");
+            } else {
+                host.println("  ERROR: Could not find duplicate for: \"" + originalName + "\"");
+            }
+            
+            // Process next track
+            processNextRTrack(tracksToArchive, index + 1, timestamp);
+            
+        }, 500); // Wait longer for duplication to complete
+    }
+    
+    // Find a track by name, excluding the original track
+    private Track findTrackByName(String targetName, Track excludeTrack) {
+        for (int i = 0; i < allTracksBank.getSizeOfBank(); i++) {
+            Track track = allTracksBank.getItemAt(i);
+            
+            if (track.exists().get() && 
+                !track.equals(excludeTrack) && 
+                targetName.equals(track.name().get())) {
+                return track;
+            }
+        }
+        return null;
     }
 }
