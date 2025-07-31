@@ -143,3 +143,10 @@ gradle-app.setting
 *.hprof
 
 # End of https://www.toptal.com/developers/gitignore/api/intellij+all,gradle,java
+/target/antrun/build-main.xml
+/target/classes/META-INF/services/com.bitwig.extension.ExtensionDefinition
+/dependency-reduced-pom.xml
+/target/maven-status/maven-compiler-plugin/compile/default-compile/inputFiles.lst
+/target/maven-status/maven-compiler-plugin/compile/default-compile/createdFiles.lst
+/target/maven-archiver/pom.properties
+/oscprojectmanager.iml
