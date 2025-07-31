@@ -583,7 +583,7 @@ public class APIServiceImpl {
                     // For group tracks, always send sub-scene names (even if default)
                     String subSceneName = (clipName != null && !clipName.trim().isEmpty()) 
                         ? clipName 
-                        : "Scene " + oneBasedIndex;
+                        : "sub- " + oneBasedIndex;
                     
                     oscManager.sendTransitionName(oneBasedIndex, subSceneName);
                     clipsSent++;
