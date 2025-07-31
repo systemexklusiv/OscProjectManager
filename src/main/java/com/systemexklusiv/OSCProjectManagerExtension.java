@@ -43,6 +43,11 @@ public class OSCProjectManagerExtension extends ControllerExtension
       
       initializationComplete = true;  // Set flag after everything is initialized
 
+      // Send transition names on startup
+      host.scheduleTask(() -> {
+          apiService.sendTransitionNames();
+      }, 1000); // Wait 1 second for everything to be fully initialized
+
       host.showPopupNotification("OSCProjectManager Initialized yo");
       host.println("OSCProjectManager Initialized with OSC communication yo!");
    }
@@ -78,6 +83,9 @@ public class OSCProjectManagerExtension extends ControllerExtension
       sceneService = new SceneServiceImpl();
       
       apiService.initialize(getHost());
+      
+      // Set OSC manager reference so API service can send messages
+      apiService.setOSCManager(oscManager);
       
       String sendHost = sendHostSetting.get();
       if (sendHost == null || sendHost.isEmpty()) {
@@ -191,6 +199,16 @@ public class OSCProjectManagerExtension extends ControllerExtension
           @Override
           public void onMakeRecordGroup() {
               apiService.makeRecordGroup();
+          }
+          
+          @Override
+          public void onSendTransitionNames() {
+              apiService.sendTransitionNames();
+          }
+          
+          @Override
+          public void onTransitionTrigger(int index) {
+              apiService.triggerTransitionSlot(index);
           }
       });
    }

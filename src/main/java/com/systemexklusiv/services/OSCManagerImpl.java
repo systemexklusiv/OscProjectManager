@@ -85,6 +85,20 @@ public class OSCManagerImpl {
                 }
             });
             
+            oscReceiver.addListener("/track/sendTransitionNames", new OSCListener() {
+                @Override
+                public void acceptMessage(java.util.Date time, OSCMessage message) {
+                    handleSendTransitionNames(message);
+                }
+            });
+            
+            oscReceiver.addListener("/transition/trigger/*", new OSCListener() {
+                @Override
+                public void acceptMessage(java.util.Date time, OSCMessage message) {
+                    handleTransitionTrigger(message);
+                }
+            });
+            
         } catch (SocketException e) {
             host.errorln("Failed to create OSC receiver on port " + receivePort + ": " + e.getMessage());
         }
@@ -103,9 +117,8 @@ public class OSCManagerImpl {
     private void handleCueTrigger(OSCMessage message) {
         if (callback == null) return;
         
-        String address = message.getAddress();
-        
         try {
+            String address = message.getAddress();
             String indexStr = address.substring(CUE_TRIGGER_OSC_PATH.length());
             int index = (int) Float.parseFloat(indexStr);  // 0-based from TouchOSC
             
@@ -116,16 +129,19 @@ public class OSCManagerImpl {
             callback.onCueTrigger(index);
             
         } catch (NumberFormatException e) {
-            host.errorln("Invalid cue trigger format: " + address);
+            host.errorln("Invalid cue trigger format in message: " + message.getAddress() + " - " + e.getMessage());
+        } catch (StringIndexOutOfBoundsException e) {
+            host.errorln("Malformed cue trigger address: " + message.getAddress() + " - " + e.getMessage());
+        } catch (Exception e) {
+            host.errorln("Error processing cue trigger message: " + message.getAddress() + " - " + e.getMessage());
         }
     }
     
     private void handleSceneTrigger(OSCMessage message) {
         if (callback == null) return;
         
-        String address = message.getAddress();
-        
         try {
+            String address = message.getAddress();
             String indexStr = address.substring(SCENE_TRIGGER_OSC_PATH.length());
             int index = Integer.parseInt(indexStr);  // 0-based from TouchOSC
             
@@ -136,7 +152,11 @@ public class OSCManagerImpl {
             callback.onSceneTrigger(index);
             
         } catch (NumberFormatException e) {
-            host.errorln("Invalid " + SCENE_SEND_NAME_OSC_PATH + " trigger format: " + address);
+            host.errorln("Invalid scene trigger format in message: " + message.getAddress() + " - " + e.getMessage());
+        } catch (StringIndexOutOfBoundsException e) {
+            host.errorln("Malformed scene trigger address: " + message.getAddress() + " - " + e.getMessage());
+        } catch (Exception e) {
+            host.errorln("Error processing scene trigger message: " + message.getAddress() + " - " + e.getMessage());
         }
     }
     
@@ -196,6 +216,23 @@ public class OSCManagerImpl {
         }
     }
     
+    public void sendTransitionName(int index, String name) {
+        if (oscSender == null) return;
+        
+        try {
+            String address = "/transition/name/" + index;
+            OSCMessage message = new OSCMessage(address, Arrays.asList(name));
+            oscSender.send(message);
+            
+            if (debugMode) {
+                host.println("[DEBUG] Sent transition name: " + address + " -> \"" + name + "\"");
+            }
+            
+        } catch (IOException e) {
+            host.errorln("Failed to send transition name: " + e.getMessage());
+        }
+    }
+    
     public void start() {
         if (oscReceiver != null) {
             try {
@@ -243,41 +280,95 @@ public class OSCManagerImpl {
     private void handleTrackDuplicateToNew(OSCMessage message) {
         if (callback == null) return;
         
-        if (debugMode) {
-            host.println("[DEBUG] Received track duplicate to new request");
+        try {
+            if (debugMode) {
+                host.println("[DEBUG] Received track duplicate to new request");
+            }
+            
+            callback.onTrackDuplicateToNew();
+        } catch (Exception e) {
+            host.errorln("Error processing track duplicate message: " + message.getAddress() + " - " + e.getMessage());
         }
-        
-        callback.onTrackDuplicateToNew();
     }
     
     private void handleAllMonitoringOff(OSCMessage message) {
         if (callback == null) return;
         
-        if (debugMode) {
-            host.println("[DEBUG] Received all monitoring off request");
+        try {
+            if (debugMode) {
+                host.println("[DEBUG] Received all monitoring off request");
+            }
+            
+            callback.onAllMonitoringOff();
+        } catch (Exception e) {
+            host.errorln("Error processing all monitoring off message: " + message.getAddress() + " - " + e.getMessage());
         }
-        
-        callback.onAllMonitoringOff();
     }
     
     private void handleAllArmOff(OSCMessage message) {
         if (callback == null) return;
         
-        if (debugMode) {
-            host.println("[DEBUG] Received all arm off request");
+        try {
+            if (debugMode) {
+                host.println("[DEBUG] Received all arm off request");
+            }
+            
+            callback.onAllArmOff();
+        } catch (Exception e) {
+            host.errorln("Error processing all arm off message: " + message.getAddress() + " - " + e.getMessage());
         }
-        
-        callback.onAllArmOff();
     }
     
     private void handleMakeRecordGroup(OSCMessage message) {
         if (callback == null) return;
         
-        if (debugMode) {
-            host.println("[DEBUG] Received make record group request");
+        try {
+            if (debugMode) {
+                host.println("[DEBUG] Received make record group request");
+            }
+            
+            callback.onMakeRecordGroup();
+        } catch (Exception e) {
+            host.errorln("Error processing make record group message: " + message.getAddress() + " - " + e.getMessage());
         }
+    }
+    
+    private void handleSendTransitionNames(OSCMessage message) {
+        if (callback == null) return;
         
-        callback.onMakeRecordGroup();
+        try {
+            if (debugMode) {
+                host.println("[DEBUG] Received send transition names request");
+            }
+            
+            callback.onSendTransitionNames();
+        } catch (Exception e) {
+            host.errorln("Error processing send transition names message: " + message.getAddress() + " - " + e.getMessage());
+        }
+    }
+    
+    private void handleTransitionTrigger(OSCMessage message) {
+        if (callback == null) return;
+        
+        try {
+            String address = message.getAddress();
+            // Extract index from "/transition/trigger/X"
+            String indexStr = address.substring("/transition/trigger/".length());
+            int index = Integer.parseInt(indexStr); // 1-based from OSC client
+            
+            if (debugMode) {
+                host.println("[DEBUG] Received transition trigger: " + address + " -> triggering slot " + index);
+            }
+            
+            callback.onTransitionTrigger(index);
+            
+        } catch (NumberFormatException e) {
+            host.errorln("Invalid transition trigger format in message: " + message.getAddress() + " - " + e.getMessage());
+        } catch (StringIndexOutOfBoundsException e) {
+            host.errorln("Malformed transition trigger address: " + message.getAddress() + " - " + e.getMessage());
+        } catch (Exception e) {
+            host.errorln("Error processing transition trigger message: " + message.getAddress() + " - " + e.getMessage());
+        }
     }
     
     public interface OSCCallback {
@@ -287,5 +378,7 @@ public class OSCManagerImpl {
         void onAllMonitoringOff();
         void onAllArmOff();
         void onMakeRecordGroup();
+        void onSendTransitionNames();
+        void onTransitionTrigger(int index);
     }
 }

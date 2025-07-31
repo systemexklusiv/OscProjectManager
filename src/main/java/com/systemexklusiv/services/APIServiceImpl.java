@@ -11,6 +11,8 @@ import com.bitwig.extension.controller.api.Track;
 import com.bitwig.extension.controller.api.Application;
 import com.bitwig.extension.controller.api.SourceSelector;
 import com.bitwig.extension.controller.api.SettableBooleanValue;
+import com.bitwig.extension.controller.api.ClipLauncherSlotBank;
+import com.bitwig.extension.controller.api.ClipLauncherSlot;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -29,7 +31,9 @@ public class APIServiceImpl {
     private TrackBank trackBank;
     private TrackBank allTracksBank; // Flat bank to access all tracks including nested ones
     private Track cursorTrack;
+    private ClipLauncherSlotBank cursorTrackClipBank;
     private Application application;
+    private OSCManagerImpl oscManager;
     
     public void initialize(ControllerHost host) {
         this.host = host;
@@ -41,6 +45,10 @@ public class APIServiceImpl {
         setupAllTracksBank();
         setupCursorTrack();
         setupApplication();
+    }
+    
+    public void setOSCManager(OSCManagerImpl oscManager) {
+        this.oscManager = oscManager;
     }
     
     private void setupCueMarkerBank() {
@@ -98,18 +106,46 @@ public class APIServiceImpl {
     }
     
     private void setupCursorTrack() {
-        cursorTrack = host.createCursorTrack(0, 0);
+        // Create cursor track with clip launcher support (numSends=0, numScenes=128)
+        cursorTrack = host.createCursorTrack(0, 128);
         cursorTrack.exists().markInterested();
         cursorTrack.arm().markInterested();
         cursorTrack.monitorMode().markInterested();
         cursorTrack.name().markInterested();
         cursorTrack.canHoldNoteData().markInterested();
         cursorTrack.canHoldAudioData().markInterested();
+        cursorTrack.isGroup().markInterested();
+        
+        // Setup clip launcher slot bank for cursor track
+        cursorTrackClipBank = cursorTrack.clipLauncherSlotBank();
+        if (cursorTrackClipBank != null) {
+            // Mark clip slot properties as interested
+            for (int i = 0; i < cursorTrackClipBank.getSizeOfBank(); i++) {
+                ClipLauncherSlot slot = cursorTrackClipBank.getItemAt(i);
+                slot.exists().markInterested();
+                slot.hasContent().markInterested();
+                slot.name().markInterested();
+            }
+            host.println("Cursor track clip bank initialized with " + cursorTrackClipBank.getSizeOfBank() + " slots");
+        } else {
+            host.println("WARNING: Could not create clip launcher slot bank for cursor track");
+        }
         
         // Setup source selector for input routing
         SourceSelector sourceSelector = cursorTrack.sourceSelector();
         sourceSelector.hasAudioInputSelected().markInterested();
         sourceSelector.hasNoteInputSelected().markInterested();
+        
+        // Add observer to automatically send transition names when track changes
+        cursorTrack.name().addValueObserver(trackName -> {
+            if (oscManager != null) {
+                // Small delay to ensure track is fully loaded
+                host.scheduleTask(() -> {
+                    host.println("Track selection changed to: \"" + trackName + "\" - sending transition names");
+                    sendTransitionNames();
+                }, 200);
+            }
+        });
     }
     
     private void setupApplication() {
@@ -500,6 +536,128 @@ public class APIServiceImpl {
         host.println("    Processed tracks in archived group: " + tracksProcessed);
         host.println("    Tracks disarmed: " + tracksDisarmed);
         host.println("    Monitoring turned off: " + monitoringTurnedOff);
+    }
+    
+    public void sendTransitionNames() {
+        host.println("=== Sending Transition Names ===");
+        
+        if (!cursorTrack.exists().get()) {
+            host.println("ERROR: No track selected (cursor track does not exist)");
+            return;
+        }
+        
+        String trackName = cursorTrack.name().get();
+        boolean isGroupTrack = cursorTrack.isGroup().get();
+        
+        host.println("Selected track: \"" + trackName + "\" (type: " + (isGroupTrack ? "Group" : "Regular") + ")");
+        
+        if (oscManager == null) {
+            host.println("ERROR: OSC Manager not available");
+            return;
+        }
+        
+        if (cursorTrackClipBank == null) {
+            host.println("ERROR: Clip launcher slot bank not available");
+            return;
+        }
+        
+        int clipsFound = 0;
+        int clipsSent = 0;
+        
+        if (isGroupTrack) {
+            host.println("Scanning group track clip slots (sub-scenes for group)...");
+        } else {
+            host.println("Scanning regular track clip slots...");
+        }
+        
+        // Go through all clip slots in the cursor track (works for both regular and group tracks)
+        for (int i = 0; i < cursorTrackClipBank.getSizeOfBank(); i++) {
+            ClipLauncherSlot slot = cursorTrackClipBank.getItemAt(i);
+            
+            if (slot.exists().get() && slot.hasContent().get()) {
+                clipsFound++;
+                String clipName = slot.name().get();
+                int oneBasedIndex = i + 1;
+                
+                if (isGroupTrack) {
+                    // For group tracks, always send sub-scene names (even if default)
+                    String subSceneName = (clipName != null && !clipName.trim().isEmpty()) 
+                        ? clipName 
+                        : "Scene " + oneBasedIndex;
+                    
+                    oscManager.sendTransitionName(oneBasedIndex, subSceneName);
+                    clipsSent++;
+                    host.println("  Sub-scene " + oneBasedIndex + ": \"" + subSceneName + "\"");
+                } else {
+                    // For regular tracks, only send if clip has a custom name
+                    if (clipName != null && !clipName.trim().isEmpty()) {
+                        oscManager.sendTransitionName(oneBasedIndex, clipName);
+                        clipsSent++;
+                        host.println("  Slot " + oneBasedIndex + ": \"" + clipName + "\"");
+                    } else {
+                        host.println("  Slot " + oneBasedIndex + ": [unnamed clip - not sent]");
+                    }
+                }
+            }
+        }
+        
+        host.println("=== Transition Names Complete ===");
+        host.println("Track: \"" + trackName + "\" (" + (isGroupTrack ? "Group" : "Regular") + ")");
+        host.println((isGroupTrack ? "Sub-scenes" : "Clips") + " found: " + clipsFound);
+        host.println("Names sent: " + clipsSent);
+        
+        if (clipsSent == 0) {
+            if (isGroupTrack) {
+                host.println("No named sub-scenes found in selected group track!");
+            } else {
+                host.println("No named clips found in selected track!");
+            }
+        }
+    }
+    
+    public void triggerTransitionSlot(int oneBasedIndex) {
+        host.println("=== Triggering Transition Slot ===");
+        
+        if (!cursorTrack.exists().get()) {
+            host.println("ERROR: No track selected (cursor track does not exist)");
+            return;
+        }
+        
+        if (cursorTrackClipBank == null) {
+            host.println("ERROR: Clip launcher slot bank not available");
+            return;
+        }
+        
+        String trackName = cursorTrack.name().get();
+        boolean isGroupTrack = cursorTrack.isGroup().get();
+        
+        // Convert from 1-based to 0-based index
+        int zeroBasedIndex = oneBasedIndex - 1;
+        
+        if (zeroBasedIndex < 0 || zeroBasedIndex >= cursorTrackClipBank.getSizeOfBank()) {
+            host.println("ERROR: Invalid slot index " + oneBasedIndex + " (valid range: 1-" + cursorTrackClipBank.getSizeOfBank() + ")");
+            return;
+        }
+        
+        ClipLauncherSlot slot = cursorTrackClipBank.getItemAt(zeroBasedIndex);
+        
+        if (!slot.exists().get()) {
+            host.println("ERROR: Slot " + oneBasedIndex + " does not exist on track \"" + trackName + "\"");
+            return;
+        }
+        
+        if (!slot.hasContent().get()) {
+            host.println("WARNING: Slot " + oneBasedIndex + " is empty on track \"" + trackName + "\" - triggering anyway");
+        }
+        
+        // Trigger the slot
+        slot.launch();
+        
+        if (isGroupTrack) {
+            host.println("Triggered sub-scene " + oneBasedIndex + " on group track \"" + trackName + "\"");
+        } else {
+            host.println("Triggered clip slot " + oneBasedIndex + " on track \"" + trackName + "\"");
+        }
     }
     
     private Track findLastTrackWithName(String targetName, Track excludeTrack) {
