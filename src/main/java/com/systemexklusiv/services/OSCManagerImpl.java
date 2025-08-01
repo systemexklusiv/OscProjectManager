@@ -220,7 +220,7 @@ public class OSCManagerImpl {
         if (oscSender == null) return;
         
         try {
-            String address = "/transition/name/" + index;
+            String address = "/transition/name/" + index; // 0-based indexing
             OSCMessage message = new OSCMessage(address, Arrays.asList(name));
             oscSender.send(message);
             
@@ -354,7 +354,7 @@ public class OSCManagerImpl {
             String address = message.getAddress();
             // Extract index from "/transition/trigger/X"
             String indexStr = address.substring("/transition/trigger/".length());
-            int index = Integer.parseInt(indexStr); // 1-based from OSC client
+            int index = Integer.parseInt(indexStr); // 0-based from OSC client
             
             if (debugMode) {
                 host.println("[DEBUG] Received transition trigger: " + address + " -> triggering slot " + index);

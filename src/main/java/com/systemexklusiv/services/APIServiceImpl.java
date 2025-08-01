@@ -577,25 +577,25 @@ public class APIServiceImpl {
             if (slot.exists().get() && slot.hasContent().get()) {
                 clipsFound++;
                 String clipName = slot.name().get();
-                int oneBasedIndex = i + 1;
+                int zeroBasedIndex = i; // Keep 0-based indexing
                 
                 if (isGroupTrack) {
                     // For group tracks, always send sub-scene names (even if default)
                     String subSceneName = (clipName != null && !clipName.trim().isEmpty()) 
                         ? clipName 
-                        : "sub- " + oneBasedIndex;
+                        : "sub- " + zeroBasedIndex;
                     
-                    oscManager.sendTransitionName(oneBasedIndex, subSceneName);
+                    oscManager.sendTransitionName(zeroBasedIndex, subSceneName);
                     clipsSent++;
-                    host.println("  Sub-scene " + oneBasedIndex + ": \"" + subSceneName + "\"");
+                    host.println("  Sub-scene " + zeroBasedIndex + ": \"" + subSceneName + "\"");
                 } else {
                     // For regular tracks, only send if clip has a custom name
                     if (clipName != null && !clipName.trim().isEmpty()) {
-                        oscManager.sendTransitionName(oneBasedIndex, clipName);
+                        oscManager.sendTransitionName(zeroBasedIndex, clipName);
                         clipsSent++;
-                        host.println("  Slot " + oneBasedIndex + ": \"" + clipName + "\"");
+                        host.println("  Slot " + zeroBasedIndex + ": \"" + clipName + "\"");
                     } else {
-                        host.println("  Slot " + oneBasedIndex + ": [unnamed clip - not sent]");
+                        host.println("  Slot " + zeroBasedIndex + ": [unnamed clip - not sent]");
                     }
                 }
             }
@@ -615,7 +615,7 @@ public class APIServiceImpl {
         }
     }
     
-    public void triggerTransitionSlot(int oneBasedIndex) {
+    public void triggerTransitionSlot(int zeroBasedIndex) {
         host.println("=== Triggering Transition Slot ===");
         
         if (!cursorTrack.exists().get()) {
@@ -631,32 +631,29 @@ public class APIServiceImpl {
         String trackName = cursorTrack.name().get();
         boolean isGroupTrack = cursorTrack.isGroup().get();
         
-        // Convert from 1-based to 0-based index
-        int zeroBasedIndex = oneBasedIndex - 1;
-        
         if (zeroBasedIndex < 0 || zeroBasedIndex >= cursorTrackClipBank.getSizeOfBank()) {
-            host.println("ERROR: Invalid slot index " + oneBasedIndex + " (valid range: 1-" + cursorTrackClipBank.getSizeOfBank() + ")");
+            host.println("ERROR: Invalid slot index " + zeroBasedIndex + " (valid range: 0-" + (cursorTrackClipBank.getSizeOfBank() - 1) + ")");
             return;
         }
         
         ClipLauncherSlot slot = cursorTrackClipBank.getItemAt(zeroBasedIndex);
         
         if (!slot.exists().get()) {
-            host.println("ERROR: Slot " + oneBasedIndex + " does not exist on track \"" + trackName + "\"");
+            host.println("ERROR: Slot " + zeroBasedIndex + " does not exist on track \"" + trackName + "\"");
             return;
         }
         
         if (!slot.hasContent().get()) {
-            host.println("WARNING: Slot " + oneBasedIndex + " is empty on track \"" + trackName + "\" - triggering anyway");
+            host.println("WARNING: Slot " + zeroBasedIndex + " is empty on track \"" + trackName + "\" - triggering anyway");
         }
         
         // Trigger the slot
         slot.launch();
         
         if (isGroupTrack) {
-            host.println("Triggered sub-scene " + oneBasedIndex + " on group track \"" + trackName + "\"");
+            host.println("Triggered sub-scene " + zeroBasedIndex + " on group track \"" + trackName + "\"");
         } else {
-            host.println("Triggered clip slot " + oneBasedIndex + " on track \"" + trackName + "\"");
+            host.println("Triggered clip slot " + zeroBasedIndex + " on track \"" + trackName + "\"");
         }
     }
     

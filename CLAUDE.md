@@ -11,18 +11,53 @@ the Cue Markers or Scenes respectivly. On the device one can select one of the s
 To be done .. please check "Future plans" in this document about whats to be implemented
 
 ## Key Features
-It provides a streamlind interfae to a Bitwig arrangement with Cue Markers and Scenes very much in focus. It enables the live electronic musician to keep 
-overview over a very large project and helps to jump on demand to veryious parts of the arrangement in order to kamke it playably and flexible but also alows to get easily back into the linear arrangement
+
+### Core Functionality
+- **Cue Marker Integration**: Sends all cue marker names via OSC and allows triggering them remotely
+- **Scene Management**: Sends all scene names via OSC and allows triggering them remotely  
+- **Transition Track Support**: Automatically sends clip/sub-scene names from selected track for transition control
+- **Bidirectional OSC**: Full two-way communication between Bitwig and OSC clients
+
+### Track Management
+- **Smart Track Duplication**: Duplicate selected track with proper settings transfer
+- **Group-based Recording Workflow**: Archive `<REC>` groups with timestamped copies
+- **Monitoring Control**: Turn off monitoring for all tracks (except `<G>` groups)
+- **Track Disarming**: Disarm all tracks with a single OSC command
+
+### Advanced Features
+- **Automatic Track Selection Response**: Transition names sent automatically when track changes
+- **Group Track Support**: Works with both regular tracks and group sub-scenes
+- **Robust Error Handling**: Comprehensive OSC message error handling without crashes
+- **Live Performance Focused**: Streamlined interface for live electronic musicians to maintain overview and control of large projects
 
 ## Implementation Notes
 Check these links as OSC implementation reference https://github.com/git-moss/DrivenByMoss/tree/master/src/main/java/de/mossgrabers/controller/osc
 check my other repository for implementation reference on how to use the API with Cue Marker: https://github.com/systemexklusiv/bwProjectControl2/tree/miditwister_claude
-Check locally on this device the API documantation. Here the path to the HTML documentation: /Applications/Bitwig\ Studio.app/Contents/Resources/Documentation/control-surface/api/index.html
 
-The OSC message format which sends out the Cue Marker names should be for each: /cue{0..n}/name "my super Cue Marker Name" 
-The OSC message format which sends out the Scene names should be for each: /scene{0..n}/name "my super Scene Name" 
-The OSC message format shall be for triggering Cue Markers which will be received by this script: /cue/trigger{0..n}
-The OSC message format shall be for triggering Scenes which will be received by this script: /scene/trigger{0..n}
+### Bitwig API Documentation
+- **Local API docs**: /Applications/Bitwig\ Studio.app/Contents/Resources/Documentation/control-surface/api/index.html
+- **Included API docs**: This repository includes a copy of the Bitwig Studio Extension API documentation in `bitwig-api-documentation/` folder
+  - Browse `bitwig-api-documentation/index.html` for the main API overview
+  - All interfaces and classes are documented with HTML files
+  - Use this for offline reference when implementing new features
+
+### OSC Message Formats
+
+**Outgoing Messages (Bitwig → OSC Client):**
+- Cue Marker names: `/cue/name/{0..n}` with name as parameter
+- Scene names: `/scene/name/{0..n}` with name as parameter  
+- Cue Marker count: `/cue/amount` with count as parameter
+- Transition names: `/transition/name/{0..n}` with clip/sub-scene name as parameter
+
+**Incoming Messages (OSC Client → Bitwig):**
+- Trigger Cue Markers: `/cue/trigger/{0..n}` (0-based indexing)
+- Trigger Scenes: `/scene/trigger/{0..n}` (0-based indexing)
+- Duplicate selected track: `/track/duplicateToNew`
+- Turn off all monitoring: `/track/allMonitoringOff`
+- Disarm all tracks: `/track/allArmOff`
+- Make record group: `/track/makeRecordGroup`
+- Send transition names: `/track/sendTransitionNames`
+- Trigger transition slots: `/transition/trigger/{0..n}` (0-based indexing)
 
 The way OSC via UDP is used and with which library can be taken from this code: Check these links as OSC implementation reference https://github.com/git-moss/DrivenByMoss/tree/master/src/main/java/de/mossgrabers/controller/osc
 
@@ -52,19 +87,28 @@ The build automatically:
 <!-- Document any known issues or limitations -->
 - When using `application.selectAll(); application.deleteSelection();`, this will delete content from ALL tracks, not just the newly copied track. Need a more targeted approach to delete only the recordings of the newly copied track.
 
-## Future Plans
-Besides the Entrypoint of the Script there should be  Services which retrieves all the Cue Marker informations.
-Another Service will be there which retrieves all the scene informations. Another service will be the OSCManager which is then used
-by the Cue Marker and Scene servives to send this informtion out via OSC in UDP. On the receiving part of this scripts there will be
-a listener implemented in the OSCManager which listens for incomming OSC messages in order to trigger Cue Marker or Scenes. The OSCManager has
-an instance of another Service the API Service which interacts with Bitwig and in the end triggers Cue Markers and Scenes with the use of the API.
+## Architecture (Implemented)
 
-## Endpoint Implementation Ideas
-- Add a new endpoint "track/makeRecordGroup" which does the following:
-  * Looks for a Bitwig group track with "<REC>" in its name
-  * When found, duplicates the track using Bitwig API's duplicate track function
-  * On the original source group:
-    - Turn all monitor settings to off
-    - Unarmed all tracks inside this group
-    - Mute the group itself
-  * Name the new group track as "<Take> # " with current date appended in format: YYYY-MM-DD-Hour-Minute
+The extension follows a service-oriented architecture:
+
+- **OSCProjectManagerExtension**: Main entry point that coordinates all services
+- **APIServiceImpl**: Handles all Bitwig API interactions (tracks, clips, cue markers, scenes)
+- **OSCManagerImpl**: Manages bidirectional OSC communication via JavaOSC library
+- **CueMarkerServiceImpl**: Monitors cue markers and sends updates via OSC
+- **SceneServiceImpl**: Monitors scenes and sends updates via OSC
+
+## Current Implementation Status
+
+✅ **Completed Features**:
+- Cue marker monitoring and OSC sending
+- Scene monitoring and OSC sending  
+- OSC message receiving and handling
+- Track duplication with settings transfer
+- Group-based recording workflow (`<REC>` groups → `<T>_timestamp` archives)
+- Transition track support (automatic clip name sending on track selection)
+- Bidirectional transition control (send names + receive triggers)
+- Comprehensive error handling
+- Group track sub-scene support
+
+## Future Plans
+- **I/O Selection Control**: Implement set/reset of track input/output selection when accessible through the Bitwig API
