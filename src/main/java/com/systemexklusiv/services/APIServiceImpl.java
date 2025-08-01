@@ -13,6 +13,7 @@ import com.bitwig.extension.controller.api.SourceSelector;
 import com.bitwig.extension.controller.api.SettableBooleanValue;
 import com.bitwig.extension.controller.api.ClipLauncherSlotBank;
 import com.bitwig.extension.controller.api.ClipLauncherSlot;
+import com.bitwig.extension.controller.api.MasterTrack;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -32,8 +33,11 @@ public class APIServiceImpl {
     private TrackBank allTracksBank; // Flat bank to access all tracks including nested ones
     private Track cursorTrack;
     private ClipLauncherSlotBank cursorTrackClipBank;
+    private MasterTrack masterTrack;
     private Application application;
     private OSCManagerImpl oscManager;
+    private ProjectDiscoveryService projectDiscoveryService;
+    private SnapshotService snapshotService;
     
     public void initialize(ControllerHost host) {
         this.host = host;
@@ -44,7 +48,9 @@ public class APIServiceImpl {
         setupTrackBank();
         setupAllTracksBank();
         setupCursorTrack();
+        setupMasterTrack();
         setupApplication();
+        setupSnapshotServices();
     }
     
     public void setOSCManager(OSCManagerImpl oscManager) {
@@ -97,6 +103,9 @@ public class APIServiceImpl {
             track.canHoldNoteData().markInterested();
             track.canHoldAudioData().markInterested();
             track.isGroup().markInterested();
+            track.volume().markInterested();
+            track.pan().markInterested();
+            track.mute().markInterested();
             
             // Setup source selector for input routing
             SourceSelector sourceSelector = track.sourceSelector();
@@ -148,8 +157,25 @@ public class APIServiceImpl {
         });
     }
     
+    private void setupMasterTrack() {
+        masterTrack = host.createMasterTrack(0);
+        masterTrack.exists().markInterested();
+        masterTrack.volume().markInterested();
+        masterTrack.pan().markInterested();
+        masterTrack.mute().markInterested();
+        masterTrack.name().markInterested();
+    }
+    
     private void setupApplication() {
         application = host.createApplication();
+    }
+    
+    private void setupSnapshotServices() {
+        projectDiscoveryService = new ProjectDiscoveryService();
+        projectDiscoveryService.initialize(host, allTracksBank, masterTrack);
+        
+        snapshotService = new SnapshotService();
+        snapshotService.initialize(host, projectDiscoveryService);
     }
     
     private void setupSceneBank() {
@@ -654,6 +680,14 @@ public class APIServiceImpl {
             host.println("Triggered sub-scene " + zeroBasedIndex + " on group track \"" + trackName + "\"");
         } else {
             host.println("Triggered clip slot " + zeroBasedIndex + " on track \"" + trackName + "\"");
+        }
+    }
+    
+    public void printCurrentTrackSnapshots() {
+        if (snapshotService != null) {
+            snapshotService.printCurrentTrackSnapshots();
+        } else {
+            host.println("ERROR: SnapshotService not initialized");
         }
     }
     

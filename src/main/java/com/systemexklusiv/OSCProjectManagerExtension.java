@@ -23,6 +23,7 @@ public class OSCProjectManagerExtension extends ControllerExtension
    private SettableRangedValue sendPortSetting;
    private SettableRangedValue receivePortSetting;
    private SettableBooleanValue debugSetting;
+   private SettableBooleanValue printSnapshotButton;
    
    private boolean initializationComplete = false;
 
@@ -67,11 +68,16 @@ public class OSCProjectManagerExtension extends ControllerExtension
       debugSetting = preferences.getBooleanSetting(
           "Debug Logging", "OSC Settings", true);
       
+      // Add button for printing current project snapshot
+      printSnapshotButton = preferences.getBooleanSetting(
+          "Print Current Project Snapshot", "Snapshot Tools", false);
+      
       // Force preference values to be ready
       sendHostSetting.markInterested();
       sendPortSetting.markInterested();
       receivePortSetting.markInterested();
       debugSetting.markInterested();
+      printSnapshotButton.markInterested();
       
       getHost().println("Preferences initialized with defaults: Host=127.0.0.1, SendPort=9000, ReceivePort=8000, Debug=true");
    }
@@ -140,6 +146,18 @@ public class OSCProjectManagerExtension extends ControllerExtension
           oscManager.setDebugMode(debug);
           if (initializationComplete) {
               getHost().println("Debug mode " + (debug ? "enabled" : "disabled"));
+          }
+      });
+      
+      printSnapshotButton.addValueObserver(pressed -> {
+          if (initializationComplete && pressed) {
+              getHost().println("Print Current Project Snapshot button pressed");
+              apiService.printCurrentTrackSnapshots();
+              
+              // Reset button to false after use (makes it act like a momentary button)
+              getHost().scheduleTask(() -> {
+                  printSnapshotButton.set(false);
+              }, 100);
           }
       });
    }
