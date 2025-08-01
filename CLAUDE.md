@@ -112,3 +112,9 @@ The extension follows a service-oriented architecture:
 
 ## Future Plans
 - **I/O Selection Control**: Implement set/reset of track input/output selection when accessible through the Bitwig API
+- **Convenient Performance Controls**:
+  - One-button arrangement for minimizing windows (shrinks browser, device windows, clip-launcher, leaving only arrangement view visible)
+  - Toggle Metronom on/off
+  - Toggle custom guide track on/off
+  - Quick jump back to automation
+  - Save and recall all mixer and device states
