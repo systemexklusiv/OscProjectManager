@@ -196,7 +196,7 @@ public class APIServiceImpl {
         snapshotService.initialize(host, projectDiscoveryService);
         
         snapshotManager = new SnapshotManager();
-        snapshotManager.initialize(host, host.getPreferences(), projectDiscoveryService, "snapshots");
+        snapshotManager.initialize(host, host.getPreferences(), projectDiscoveryService, "snapshots", allTracksBank);
     }
     
     private void setupSceneBank() {

@@ -3,6 +3,8 @@ package com.systemexklusiv.services;
 import com.bitwig.extension.controller.api.ControllerHost;
 import com.bitwig.extension.controller.api.Preferences;
 import com.bitwig.extension.controller.api.SettableStringValue;
+import com.bitwig.extension.controller.api.TrackBank;
+import com.bitwig.extension.controller.api.Track;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
@@ -13,6 +15,7 @@ public class SnapshotManager {
     private Preferences preferences;
     private ProjectDiscoveryService projectDiscoveryService;
     private String snapshotDirectoryPath;
+    private TrackBank allTracksBank;
     
     // In-memory storage for quick access
     private Map<Integer, ProjectSnapshot> memorySnapshots;
@@ -25,11 +28,12 @@ public class SnapshotManager {
     // Current project name for JSON file naming
     private String currentProjectName = "unknown_project";
     
-    public void initialize(ControllerHost host, Preferences preferences, ProjectDiscoveryService projectDiscoveryService, String snapshotDirectoryPath) {
+    public void initialize(ControllerHost host, Preferences preferences, ProjectDiscoveryService projectDiscoveryService, String snapshotDirectoryPath, TrackBank allTracksBank) {
         this.host = host;
         this.preferences = preferences;
         this.projectDiscoveryService = projectDiscoveryService;
         this.snapshotDirectoryPath = snapshotDirectoryPath != null ? snapshotDirectoryPath : "snapshots";
+        this.allTracksBank = allTracksBank;
         this.memorySnapshots = new HashMap<>();
         
         setupPreferences();
@@ -138,16 +142,96 @@ public class SnapshotManager {
         }
         
         host.println("Found snapshot: \"" + snapshot.snapshotName + "\" (" + snapshot.getTrackCount() + " tracks)");
-        host.println("TODO: Implement track state restoration");
         
-        // TODO: Implement actual track state restoration
-        // This would involve:
-        // 1. Match tracks by name (primary) or position (fallback)
-        // 2. Set volume, pan, mute, arm, monitor mode
-        // 3. Set send levels for each track
-        // 4. Log any tracks that couldn't be matched
+        // Restore track states
+        return restoreTrackStates(snapshot);
+    }
+    
+    private boolean restoreTrackStates(ProjectSnapshot snapshot) {
+        host.println("=== Restoring Track States ===");
         
-        return true;
+        int tracksRestored = 0;
+        int tracksNotFound = 0;
+        int tracksWithErrors = 0;
+        
+        for (TrackSnapshot trackSnapshot : snapshot.tracks) {
+            try {
+                Track matchedTrack = findMatchingTrack(trackSnapshot);
+                
+                if (matchedTrack != null) {
+                    restoreTrackState(matchedTrack, trackSnapshot);
+                    tracksRestored++;
+                    host.println("✓ Restored: \"" + trackSnapshot.trackName + "\"");
+                } else {
+                    tracksNotFound++;
+                    host.println("✗ Not found: \"" + trackSnapshot.trackName + "\"");
+                }
+                
+            } catch (Exception e) {
+                tracksWithErrors++;
+                host.errorln("✗ Error restoring \"" + trackSnapshot.trackName + "\": " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+        
+        host.println("=== Restore Complete ===");
+        host.println("Tracks restored: " + tracksRestored);
+        host.println("Tracks not found: " + tracksNotFound);
+        host.println("Tracks with errors: " + tracksWithErrors);
+        
+        return tracksRestored > 0;
+    }
+    
+    private Track findMatchingTrack(TrackSnapshot trackSnapshot) {
+        // First try to match by name (primary method)
+        for (int i = 0; i < allTracksBank.getSizeOfBank(); i++) {
+            Track track = allTracksBank.getItemAt(i);
+            if (track.exists().get() && trackSnapshot.trackName.equals(track.name().get())) {
+                return track;
+            }
+        }
+        
+        // Fallback: try to match by position if within bounds
+        if (trackSnapshot.trackPosition >= 0 && trackSnapshot.trackPosition < allTracksBank.getSizeOfBank()) {
+            Track track = allTracksBank.getItemAt(trackSnapshot.trackPosition);
+            if (track.exists().get()) {
+                host.println("  Matched by position: \"" + trackSnapshot.trackName + "\" -> \"" + track.name().get() + "\"");
+                return track;
+            }
+        }
+        
+        return null; // No match found
+    }
+    
+    private void restoreTrackState(Track track, TrackSnapshot trackSnapshot) {
+        // Restore basic mixer properties
+        track.volume().set(trackSnapshot.volume);
+        track.pan().set(trackSnapshot.pan);
+        track.mute().set(trackSnapshot.muted);
+        track.arm().set(trackSnapshot.armed);
+        
+        // Restore monitor mode
+        if (trackSnapshot.monitorMode != null) {
+            track.monitorMode().set(trackSnapshot.monitorMode);
+        }
+        
+        // Restore send levels
+        if (trackSnapshot.sendLevels != null) {
+            for (int s = 0; s < Math.min(trackSnapshot.sendLevels.length, TrackSnapshot.SEND_BANK_SIZE); s++) {
+                try {
+                    track.sendBank().getItemAt(s).set(trackSnapshot.sendLevels[s]);
+                } catch (Exception e) {
+                    host.errorln("  Error setting send " + s + " on \"" + trackSnapshot.trackName + "\": " + e.getMessage());
+                }
+            }
+        }
+        
+        // Log detailed restoration info
+        host.println("  Vol:" + String.format("%.2f", trackSnapshot.volume) + 
+                     " Pan:" + String.format("%+.2f", trackSnapshot.pan) + 
+                     " Mute:" + trackSnapshot.muted + 
+                     " Arm:" + trackSnapshot.armed + 
+                     " Mon:" + (trackSnapshot.monitorMode != null ? trackSnapshot.monitorMode : "NULL"));
     }
     
     public void listSnapshots() {
