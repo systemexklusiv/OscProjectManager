@@ -16,6 +16,7 @@ public class SnapshotManager {
     private ProjectDiscoveryService projectDiscoveryService;
     private String snapshotDirectoryPath;
     private TrackBank allTracksBank;
+    private TrackIdManager trackIdManager;
     
     // In-memory storage for quick access
     private Map<Integer, ProjectSnapshot> memorySnapshots;
@@ -35,6 +36,10 @@ public class SnapshotManager {
         this.snapshotDirectoryPath = snapshotDirectoryPath != null ? snapshotDirectoryPath : "snapshots";
         this.allTracksBank = allTracksBank;
         this.memorySnapshots = new HashMap<>();
+        
+        // Initialize track ID manager
+        this.trackIdManager = new TrackIdManager();
+        this.trackIdManager.initialize(host, projectDiscoveryService);
         
         setupPreferences();
         host.println("SnapshotManager initialized with dual storage (Preferences + JSON)");
@@ -84,17 +89,25 @@ public class SnapshotManager {
         host.println("=== Saving Snapshot to Slot " + slotIndex + " ===");
         
         try {
-            // Discover current project state
-            projectDiscoveryService.spiderCurrentProject();
-            List<TrackSnapshot> tracks = projectDiscoveryService.getDiscoveredTracks();
-            
-            if (tracks.isEmpty()) {
-                host.errorln("No tracks found - cannot save empty snapshot");
+            // First check for duplicate IDs
+            if (!trackIdManager.checkForDuplicateIds()) {
+                host.errorln("Cannot save snapshot - duplicate track IDs detected!");
                 return false;
             }
             
+            // Discover current project state and filter by track IDs
+            List<TrackSnapshot> tracksWithIds = trackIdManager.getTracksWithIds();
+            
+            if (tracksWithIds.isEmpty()) {
+                host.errorln("No tracks with IDs found - cannot save empty snapshot");
+                host.println("Add track IDs using format: 'Track Name $0$', 'Bass $1$', etc.");
+                return false;
+            }
+            
+            host.println("Saving " + tracksWithIds.size() + " tracks with IDs to snapshot");
+            
             // Create project snapshot
-            ProjectSnapshot snapshot = new ProjectSnapshot(tracks, snapshotName);
+            ProjectSnapshot snapshot = new ProjectSnapshot(tracksWithIds, snapshotName);
             
             // Store in memory for quick access
             memorySnapshots.put(slotIndex, snapshot);
@@ -109,7 +122,7 @@ public class SnapshotManager {
             host.println("Snapshot saved successfully:");
             host.println("  Slot: " + slotIndex);
             host.println("  Name: \"" + snapshotName + "\"");
-            host.println("  Tracks: " + tracks.size());
+            host.println("  Tracks: " + tracksWithIds.size());
             host.println("  Storage: Memory + Preferences + JSON file");
             
             return true;
@@ -183,24 +196,32 @@ public class SnapshotManager {
     }
     
     private Track findMatchingTrack(TrackSnapshot trackSnapshot) {
-        // First try to match by name (primary method)
+        // Extract the track ID from the saved snapshot
+        String savedTrackId = trackIdManager.extractTrackId(trackSnapshot.trackName);
+        if (savedTrackId == null) {
+            host.println("  No ID found in saved track: \"" + trackSnapshot.trackName + "\"");
+            return null;
+        }
+        
+        // Find current track with matching ID
         for (int i = 0; i < allTracksBank.getSizeOfBank(); i++) {
             Track track = allTracksBank.getItemAt(i);
-            if (track.exists().get() && trackSnapshot.trackName.equals(track.name().get())) {
-                return track;
-            }
-        }
-        
-        // Fallback: try to match by position if within bounds
-        if (trackSnapshot.trackPosition >= 0 && trackSnapshot.trackPosition < allTracksBank.getSizeOfBank()) {
-            Track track = allTracksBank.getItemAt(trackSnapshot.trackPosition);
             if (track.exists().get()) {
-                host.println("  Matched by position: \"" + trackSnapshot.trackName + "\" -> \"" + track.name().get() + "\"");
-                return track;
+                String currentTrackName = track.name().get();
+                String currentTrackId = trackIdManager.extractTrackId(currentTrackName);
+                
+                if (currentTrackId != null && currentTrackId.equals(savedTrackId)) {
+                    // Perfect match by ID
+                    if (!currentTrackName.equals(trackSnapshot.trackName)) {
+                        host.println("  ID match: \"" + trackSnapshot.trackName + "\" -> \"" + currentTrackName + "\" (ID $" + savedTrackId + "$)");
+                    }
+                    return track;
+                }
             }
         }
         
-        return null; // No match found
+        host.println("  No current track found with ID $" + savedTrackId + "$");
+        return null; // No matching ID found
     }
     
     private void restoreTrackState(Track track, TrackSnapshot trackSnapshot) {
@@ -258,6 +279,23 @@ public class SnapshotManager {
             currentProjectName = projectName.trim();
             projectNameSetting.set(currentProjectName);
             host.println("Project name set to: " + currentProjectName);
+        }
+    }
+    
+    public void printTrackIdReport() {
+        if (trackIdManager != null) {
+            trackIdManager.printTrackIdReport();
+        } else {
+            host.println("ERROR: TrackIdManager not initialized");
+        }
+    }
+    
+    public boolean checkForDuplicateIds() {
+        if (trackIdManager != null) {
+            return trackIdManager.checkForDuplicateIds();
+        } else {
+            host.println("ERROR: TrackIdManager not initialized");
+            return false;
         }
     }
     

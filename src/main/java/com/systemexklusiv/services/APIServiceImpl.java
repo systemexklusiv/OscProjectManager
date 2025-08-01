@@ -753,6 +753,23 @@ public class APIServiceImpl {
         }
     }
     
+    public void printTrackIdReport() {
+        if (snapshotManager != null) {
+            snapshotManager.printTrackIdReport();
+        } else {
+            host.println("ERROR: SnapshotManager not initialized");
+        }
+    }
+    
+    public boolean checkForDuplicateIds() {
+        if (snapshotManager != null) {
+            return snapshotManager.checkForDuplicateIds();
+        } else {
+            host.println("ERROR: SnapshotManager not initialized");
+            return false;
+        }
+    }
+    
     private Track findLastTrackWithName(String targetName, Track excludeTrack) {
         // Find the last track in the bank with the target name, excluding the specified track
         Track lastMatch = null;

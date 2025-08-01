@@ -26,6 +26,8 @@ public class OSCProjectManagerExtension extends ControllerExtension
    private SettableBooleanValue printSnapshotButton;
    private SettableBooleanValue saveSnapshotButton;
    private SettableBooleanValue recallSnapshotButton;
+   private SettableBooleanValue trackIdReportButton;
+   private SettableBooleanValue duplicateCheckButton;
    private SettableStringValue snapshotPathSetting;
    
    private boolean initializationComplete = false;
@@ -82,6 +84,12 @@ public class OSCProjectManagerExtension extends ControllerExtension
       recallSnapshotButton = preferences.getBooleanSetting(
           "Recall Snapshot from Slot 0", "Snapshot Tools", false);
       
+      trackIdReportButton = preferences.getBooleanSetting(
+          "Print Track ID Report", "Snapshot Tools", false);
+      
+      duplicateCheckButton = preferences.getBooleanSetting(
+          "Check for Duplicate Track IDs", "Snapshot Tools", false);
+      
       // Add configurable snapshot path
       snapshotPathSetting = preferences.getStringSetting(
           "Snapshot Directory Path", "Snapshot Tools", 64, "snapshots");
@@ -94,6 +102,8 @@ public class OSCProjectManagerExtension extends ControllerExtension
       printSnapshotButton.markInterested();
       saveSnapshotButton.markInterested();
       recallSnapshotButton.markInterested();
+      trackIdReportButton.markInterested();
+      duplicateCheckButton.markInterested();
       snapshotPathSetting.markInterested();
       
       getHost().println("Preferences initialized with defaults: Host=127.0.0.1, SendPort=9000, ReceivePort=8000, Debug=true");
@@ -215,6 +225,35 @@ public class OSCProjectManagerExtension extends ControllerExtension
               // Reset button to false after use (makes it act like a momentary button)
               getHost().scheduleTask(() -> {
                   recallSnapshotButton.set(false);
+              }, 100);
+          }
+      });
+      
+      trackIdReportButton.addValueObserver(pressed -> {
+          if (initializationComplete && pressed) {
+              getHost().println("Print Track ID Report button pressed");
+              apiService.printTrackIdReport();
+              
+              // Reset button to false after use (makes it act like a momentary button)
+              getHost().scheduleTask(() -> {
+                  trackIdReportButton.set(false);
+              }, 100);
+          }
+      });
+      
+      duplicateCheckButton.addValueObserver(pressed -> {
+          if (initializationComplete && pressed) {
+              getHost().println("Check for Duplicate Track IDs button pressed");
+              boolean noDuplicates = apiService.checkForDuplicateIds();
+              if (noDuplicates) {
+                  getHost().showPopupNotification("OK: No duplicate IDs found");
+              } else {
+                  getHost().showPopupNotification("ERROR: Duplicate IDs detected - check console");
+              }
+              
+              // Reset button to false after use (makes it act like a momentary button)
+              getHost().scheduleTask(() -> {
+                  duplicateCheckButton.set(false);
               }, 100);
           }
       });
