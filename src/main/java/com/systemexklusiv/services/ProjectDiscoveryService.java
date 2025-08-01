@@ -4,6 +4,7 @@ import com.bitwig.extension.controller.api.ControllerHost;
 import com.bitwig.extension.controller.api.TrackBank;
 import com.bitwig.extension.controller.api.Track;
 import com.bitwig.extension.controller.api.MasterTrack;
+import com.bitwig.extension.controller.api.SendBank;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -105,6 +106,13 @@ public class ProjectDiscoveryService {
         snapshot.pan = track.pan().get();
         snapshot.muted = track.mute().get();
         snapshot.armed = track.arm().get();
+        snapshot.monitorMode = track.monitorMode().get();
+        
+        // Capture send levels
+        SendBank sendBank = track.sendBank();
+        for (int s = 0; s < TrackSnapshot.SEND_BANK_SIZE; s++) {
+            snapshot.sendLevels[s] = sendBank.getItemAt(s).get();
+        }
         
         return snapshot;
     }

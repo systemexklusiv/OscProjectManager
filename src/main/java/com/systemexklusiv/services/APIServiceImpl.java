@@ -70,7 +70,8 @@ public class APIServiceImpl {
     }
     
     private void setupTrackBank() {
-        trackBank = host.createTrackBank(128, 0, 0, false);
+        // Parameters: numTracks, numSends, numScenes, hasFlatTrackList
+        trackBank = host.createTrackBank(128, TrackSnapshot.SEND_BANK_SIZE, 0, false);
         
         for (int i = 0; i < 128; i++) {
             Track track = trackBank.getItemAt(i);
@@ -81,6 +82,15 @@ public class APIServiceImpl {
             track.canHoldNoteData().markInterested();
             track.canHoldAudioData().markInterested();
             track.isGroup().markInterested();
+            track.volume().markInterested();
+            track.pan().markInterested();
+            track.mute().markInterested();
+            
+            // Setup send bank for FX sends (same as allTracksBank)
+            track.sendBank().setSizeOfBank(TrackSnapshot.SEND_BANK_SIZE);
+            for (int s = 0; s < TrackSnapshot.SEND_BANK_SIZE; s++) {
+                track.sendBank().getItemAt(s).markInterested();
+            }
             
             // Setup source selector for input routing
             SourceSelector sourceSelector = track.sourceSelector();
@@ -91,7 +101,8 @@ public class APIServiceImpl {
     
     private void setupAllTracksBank() {
         // Create a flat track bank that includes ALL tracks (including nested ones)
-        allTracksBank = host.createTrackBank(512, 0, 0, true); // Large flat bank with hasFlatTrackList=true
+        // Parameters: numTracks, numSends, numScenes, hasFlatTrackList
+        allTracksBank = host.createTrackBank(512, TrackSnapshot.SEND_BANK_SIZE, 0, true);
         
         for (int i = 0; i < 512; i++) {
             Track track = allTracksBank.getItemAt(i);
@@ -106,6 +117,12 @@ public class APIServiceImpl {
             track.volume().markInterested();
             track.pan().markInterested();
             track.mute().markInterested();
+            
+            // Setup send bank for FX sends
+            track.sendBank().setSizeOfBank(TrackSnapshot.SEND_BANK_SIZE);
+            for (int s = 0; s < TrackSnapshot.SEND_BANK_SIZE; s++) {
+                track.sendBank().getItemAt(s).markInterested();
+            }
             
             // Setup source selector for input routing
             SourceSelector sourceSelector = track.sourceSelector();

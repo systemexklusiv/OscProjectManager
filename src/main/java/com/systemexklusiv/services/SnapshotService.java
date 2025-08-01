@@ -47,16 +47,44 @@ public class SnapshotService {
         String typeIndicator = getTypeIndicator(track.trackType);
         String muteIndicator = track.muted ? "[MUTED]" : "";
         String armIndicator = track.armed ? "[ARMED]" : "";
+        String monitorIndicator = getMonitorIndicator(track.monitorMode);
         
-        host.println(String.format("  %2d: %-20s %s Vol:%.2f Pan:%+.2f %s%s", 
+        // Basic track info
+        host.println(String.format("  %2d: %-20s %s Vol:%.2f Pan:%+.2f %s%s%s", 
             index,
             "\"" + track.trackName + "\"",
             typeIndicator,
             track.volume,
             track.pan,
             muteIndicator,
-            armIndicator
+            armIndicator,
+            monitorIndicator
         ));
+        
+        // Show active sends (only if > 0.0)
+        StringBuilder sendInfo = new StringBuilder();
+        boolean hasActiveSends = false;
+        for (int s = 0; s < track.sendLevels.length; s++) {
+            if (track.sendLevels[s] > 0.0) {
+                if (hasActiveSends) sendInfo.append(", ");
+                sendInfo.append(String.format("S%d:%.2f", s, track.sendLevels[s]));
+                hasActiveSends = true;
+            }
+        }
+        
+        if (hasActiveSends) {
+            host.println(String.format("      Sends: %s", sendInfo.toString()));
+        }
+    }
+    
+    private String getMonitorIndicator(String monitorMode) {
+        if (monitorMode == null) return "[MON:NULL]";
+        switch (monitorMode) {
+            case "IN": return "[MON:IN]";
+            case "AUTO": return "[MON:AUTO]";
+            case "OFF": return "[MON:OFF]";
+            default: return "[MON:" + monitorMode + "]";
+        }
     }
     
     private String getTypeIndicator(String trackType) {
