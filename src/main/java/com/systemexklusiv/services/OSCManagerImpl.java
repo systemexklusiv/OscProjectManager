@@ -20,6 +20,9 @@ public class OSCManagerImpl {
     public static final String SCENE_TRIGGER_OSC_PATH = "/scene/trigger/";
     public static final String CUE_SEND_NAME_OSC_PATH = "/cue/name/";
     public static final String CUE_AMOUNT_PATH = "/cue/amount";
+    public static final String SNAPSHOT_SAVE_OSC_PATH = "/snapshot/save/";
+    public static final String SNAPSHOT_RECALL_OSC_PATH = "/snapshot/recall/";
+    public static final String SNAPSHOT_LIST_OSC_PATH = "/snapshot/list";
     private ControllerHost host;
     private OSCPortIn oscReceiver;
     private OSCPortOut oscSender;
@@ -96,6 +99,27 @@ public class OSCManagerImpl {
                 @Override
                 public void acceptMessage(java.util.Date time, OSCMessage message) {
                     handleTransitionTrigger(message);
+                }
+            });
+            
+            oscReceiver.addListener(SNAPSHOT_SAVE_OSC_PATH+"*", new OSCListener() {
+                @Override
+                public void acceptMessage(java.util.Date time, OSCMessage message) {
+                    handleSnapshotSave(message);
+                }
+            });
+            
+            oscReceiver.addListener(SNAPSHOT_RECALL_OSC_PATH+"*", new OSCListener() {
+                @Override
+                public void acceptMessage(java.util.Date time, OSCMessage message) {
+                    handleSnapshotRecall(message);
+                }
+            });
+            
+            oscReceiver.addListener(SNAPSHOT_LIST_OSC_PATH, new OSCListener() {
+                @Override
+                public void acceptMessage(java.util.Date time, OSCMessage message) {
+                    handleSnapshotList(message);
                 }
             });
             
@@ -371,6 +395,77 @@ public class OSCManagerImpl {
         }
     }
     
+    private void handleSnapshotSave(OSCMessage message) {
+        if (callback == null) return;
+        
+        try {
+            String address = message.getAddress();
+            // Extract slot index from "/snapshot/save/X"
+            String indexStr = address.substring(SNAPSHOT_SAVE_OSC_PATH.length());
+            int slotIndex = Integer.parseInt(indexStr); // 0-based from OSC client
+            
+            // Get snapshot name from message arguments (optional, default to auto-generated)
+            String snapshotName = "Snapshot " + slotIndex;
+            if (message.getArguments().size() > 0) {
+                Object arg = message.getArguments().get(0);
+                if (arg instanceof String) {
+                    snapshotName = (String) arg;
+                }
+            }
+            
+            if (debugMode) {
+                host.println("[DEBUG] Received snapshot save: " + address + " -> saving to slot " + slotIndex + " as \"" + snapshotName + "\"");
+            }
+            
+            callback.onSnapshotSave(slotIndex, snapshotName);
+            
+        } catch (NumberFormatException e) {
+            host.errorln("Invalid snapshot save format in message: " + message.getAddress() + " - " + e.getMessage());
+        } catch (StringIndexOutOfBoundsException e) {
+            host.errorln("Malformed snapshot save address: " + message.getAddress() + " - " + e.getMessage());
+        } catch (Exception e) {
+            host.errorln("Error processing snapshot save message: " + message.getAddress() + " - " + e.getMessage());
+        }
+    }
+    
+    private void handleSnapshotRecall(OSCMessage message) {
+        if (callback == null) return;
+        
+        try {
+            String address = message.getAddress();
+            // Extract slot index from "/snapshot/recall/X"
+            String indexStr = address.substring(SNAPSHOT_RECALL_OSC_PATH.length());
+            int slotIndex = Integer.parseInt(indexStr); // 0-based from OSC client
+            
+            if (debugMode) {
+                host.println("[DEBUG] Received snapshot recall: " + address + " -> recalling from slot " + slotIndex);
+            }
+            
+            callback.onSnapshotRecall(slotIndex);
+            
+        } catch (NumberFormatException e) {
+            host.errorln("Invalid snapshot recall format in message: " + message.getAddress() + " - " + e.getMessage());
+        } catch (StringIndexOutOfBoundsException e) {
+            host.errorln("Malformed snapshot recall address: " + message.getAddress() + " - " + e.getMessage());
+        } catch (Exception e) {
+            host.errorln("Error processing snapshot recall message: " + message.getAddress() + " - " + e.getMessage());
+        }
+    }
+    
+    private void handleSnapshotList(OSCMessage message) {
+        if (callback == null) return;
+        
+        try {
+            if (debugMode) {
+                host.println("[DEBUG] Received snapshot list request");
+            }
+            
+            callback.onSnapshotList();
+        } catch (Exception e) {
+            host.errorln("Error processing snapshot list message: " + message.getAddress() + " - " + e.getMessage());
+        }
+    }
+    
     public interface OSCCallback {
         void onCueTrigger(int index);
         void onSceneTrigger(int index);
@@ -380,5 +475,8 @@ public class OSCManagerImpl {
         void onMakeRecordGroup();
         void onSendTransitionNames();
         void onTransitionTrigger(int index);
+        void onSnapshotSave(int slotIndex, String snapshotName);
+        void onSnapshotRecall(int slotIndex);
+        void onSnapshotList();
     }
 }

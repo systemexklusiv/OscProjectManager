@@ -38,6 +38,7 @@ public class APIServiceImpl {
     private OSCManagerImpl oscManager;
     private ProjectDiscoveryService projectDiscoveryService;
     private SnapshotService snapshotService;
+    private SnapshotManager snapshotManager;
     
     public void initialize(ControllerHost host) {
         this.host = host;
@@ -193,6 +194,9 @@ public class APIServiceImpl {
         
         snapshotService = new SnapshotService();
         snapshotService.initialize(host, projectDiscoveryService);
+        
+        snapshotManager = new SnapshotManager();
+        snapshotManager.initialize(host, host.getPreferences(), projectDiscoveryService, "snapshots");
     }
     
     private void setupSceneBank() {
@@ -705,6 +709,47 @@ public class APIServiceImpl {
             snapshotService.printCurrentTrackSnapshots();
         } else {
             host.println("ERROR: SnapshotService not initialized");
+        }
+    }
+    
+    public boolean saveSnapshot(int slotIndex, String snapshotName) {
+        if (snapshotManager != null) {
+            return snapshotManager.saveSnapshot(slotIndex, snapshotName);
+        } else {
+            host.errorln("ERROR: SnapshotManager not initialized");
+            return false;
+        }
+    }
+    
+    public boolean recallSnapshot(int slotIndex) {
+        if (snapshotManager != null) {
+            return snapshotManager.recallSnapshot(slotIndex);
+        } else {
+            host.errorln("ERROR: SnapshotManager not initialized");
+            return false;
+        }
+    }
+    
+    public void listSnapshots() {
+        if (snapshotManager != null) {
+            snapshotManager.listSnapshots();
+        } else {
+            host.println("ERROR: SnapshotManager not initialized");
+        }
+    }
+    
+    public void setProjectName(String projectName) {
+        if (snapshotManager != null) {
+            snapshotManager.setProjectName(projectName);
+        } else {
+            host.println("ERROR: SnapshotManager not initialized");
+        }
+    }
+    
+    public void setSnapshotPath(String snapshotPath) {
+        // Update SnapshotManager path without re-initializing preferences
+        if (snapshotManager != null) {
+            snapshotManager.updateSnapshotPath(snapshotPath);
         }
     }
     

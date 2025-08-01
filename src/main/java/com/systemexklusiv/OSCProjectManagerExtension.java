@@ -24,6 +24,9 @@ public class OSCProjectManagerExtension extends ControllerExtension
    private SettableRangedValue receivePortSetting;
    private SettableBooleanValue debugSetting;
    private SettableBooleanValue printSnapshotButton;
+   private SettableBooleanValue saveSnapshotButton;
+   private SettableBooleanValue recallSnapshotButton;
+   private SettableStringValue snapshotPathSetting;
    
    private boolean initializationComplete = false;
 
@@ -72,12 +75,26 @@ public class OSCProjectManagerExtension extends ControllerExtension
       printSnapshotButton = preferences.getBooleanSetting(
           "Print Current Project Snapshot", "Snapshot Tools", false);
       
+      // Add buttons for snapshot save/recall
+      saveSnapshotButton = preferences.getBooleanSetting(
+          "Save Snapshot to Slot 0", "Snapshot Tools", false);
+      
+      recallSnapshotButton = preferences.getBooleanSetting(
+          "Recall Snapshot from Slot 0", "Snapshot Tools", false);
+      
+      // Add configurable snapshot path
+      snapshotPathSetting = preferences.getStringSetting(
+          "Snapshot Directory Path", "Snapshot Tools", 64, "snapshots");
+      
       // Force preference values to be ready
       sendHostSetting.markInterested();
       sendPortSetting.markInterested();
       receivePortSetting.markInterested();
       debugSetting.markInterested();
       printSnapshotButton.markInterested();
+      saveSnapshotButton.markInterested();
+      recallSnapshotButton.markInterested();
+      snapshotPathSetting.markInterested();
       
       getHost().println("Preferences initialized with defaults: Host=127.0.0.1, SendPort=9000, ReceivePort=8000, Debug=true");
    }
@@ -120,6 +137,13 @@ public class OSCProjectManagerExtension extends ControllerExtension
       cueMarkerService.initialize(apiService, oscManager);
       sceneService.initialize(apiService, oscManager);
       
+      // Set initial snapshot path
+      String initialSnapshotPath = snapshotPathSetting.get();
+      if (initialSnapshotPath == null || initialSnapshotPath.trim().isEmpty()) {
+          initialSnapshotPath = "snapshots";
+      }
+      apiService.setSnapshotPath(initialSnapshotPath);
+      
       setupPreferenceObservers();
    }
    
@@ -158,6 +182,48 @@ public class OSCProjectManagerExtension extends ControllerExtension
               getHost().scheduleTask(() -> {
                   printSnapshotButton.set(false);
               }, 100);
+          }
+      });
+      
+      saveSnapshotButton.addValueObserver(pressed -> {
+          if (initializationComplete && pressed) {
+              getHost().println("Save Snapshot button pressed - saving to slot 0");
+              boolean success = apiService.saveSnapshot(0, "Quick Save");
+              if (success) {
+                  getHost().showPopupNotification("Snapshot saved to slot 0");
+              } else {
+                  getHost().showPopupNotification("Failed to save snapshot");
+              }
+              
+              // Reset button to false after use (makes it act like a momentary button)
+              getHost().scheduleTask(() -> {
+                  saveSnapshotButton.set(false);
+              }, 100);
+          }
+      });
+      
+      recallSnapshotButton.addValueObserver(pressed -> {
+          if (initializationComplete && pressed) {
+              getHost().println("Recall Snapshot button pressed - recalling from slot 0");
+              boolean success = apiService.recallSnapshot(0);
+              if (success) {
+                  getHost().showPopupNotification("Snapshot recalled from slot 0");
+              } else {
+                  getHost().showPopupNotification("No snapshot found in slot 0");
+              }
+              
+              // Reset button to false after use (makes it act like a momentary button)
+              getHost().scheduleTask(() -> {
+                  recallSnapshotButton.set(false);
+              }, 100);
+          }
+      });
+      
+      snapshotPathSetting.addValueObserver(path -> {
+          if (initializationComplete) {
+              String newPath = path != null && !path.trim().isEmpty() ? path.trim() : "snapshots";
+              getHost().println("Snapshot path updated to: " + newPath);
+              apiService.setSnapshotPath(newPath);
           }
       });
    }
@@ -227,6 +293,21 @@ public class OSCProjectManagerExtension extends ControllerExtension
           @Override
           public void onTransitionTrigger(int index) {
               apiService.triggerTransitionSlot(index);
+          }
+          
+          @Override
+          public void onSnapshotSave(int slotIndex, String snapshotName) {
+              apiService.saveSnapshot(slotIndex, snapshotName);
+          }
+          
+          @Override
+          public void onSnapshotRecall(int slotIndex) {
+              apiService.recallSnapshot(slotIndex);
+          }
+          
+          @Override
+          public void onSnapshotList() {
+              apiService.listSnapshots();
           }
       });
    }
