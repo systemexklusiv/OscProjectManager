@@ -112,6 +112,85 @@ The extension follows a service-oriented architecture:
 
 ## Future Plans
 - **I/O Selection Control**: Implement set/reset of track input/output selection when accessible through the Bitwig API
+
+## Planned Snapshot System
+
+### Overview
+A comprehensive snapshot system for saving and recalling complete project mixer states, with advanced A/B interpolation capabilities for live performance.
+
+### Architecture Components
+
+#### 1. Core Services
+- **SnapshotServiceImpl**: Handles snapshot save/recall operations and OSC integration
+- **SnapshotManager**: Manages A/B snapshot selection and interpolation calculations
+- **TrackSnapshot**: Data structure for individual track states
+- **ProjectSnapshot**: Container for complete project snapshots
+
+#### 2. Data Structure
+```java
+public class TrackSnapshot {
+    public String trackName;
+    public String trackType;        // "audio", "instrument", "group", "master"
+    public double volume;           // 0.0 to 1.0
+    public double pan;              // -1.0 to 1.0  
+    public boolean muted;
+    public boolean armed;
+    public int trackPosition;       // backup identifier
+}
+
+public class ProjectSnapshot {
+    public String timestamp;
+    public String snapshotName;     // user-defined name
+    public List<TrackSnapshot> tracks;
+    public TrackSnapshot masterTrack;
+}
+```
+
+#### 3. Storage Strategy (Per-Project)
+- **Storage Location**: Bitwig's project-specific properties system
+- **Path Structure**: `/{projectName}/snapshots/{snapshotName}.json`
+- **Example**: `/MyCoolProject/snapshots/snapshot_1.json`
+- **Benefits**: Snapshots saved with each project, automatic project isolation
+
+#### 4. A/B Interpolation System
+- **SnapshotManager** maintains:
+  - Current A Snapshot (selected)
+  - Current B Snapshot (selected) 
+  - Interpolation factor: `-1.0` (full A) to `+1.0` (full B)
+  - Active interpolated state (calculated in real-time)
+- **Real-time Calculation**: Third `TrackSnapshot` instance reflects current Bitwig state
+- **Live Performance**: Smooth morphing between two complete mixer states
+
+#### 5. OSC Endpoints (Planned)
+```
+/snapshot/save/{0..n}              - Save current state to slot
+/snapshot/save/{0..n}/{name}       - Save with custom name
+/snapshot/recall/{0..n}            - Recall snapshot to current state
+/snapshot/select_a/{0..n}          - Set snapshot as A reference
+/snapshot/select_b/{0..n}          - Set snapshot as B reference  
+/snapshot/interpolate/{-1.0..1.0}  - Interpolate between A and B
+/snapshot/list                     - Send list of saved snapshots
+```
+
+#### 6. Track Identification Strategy
+- **Primary**: Match by track name (most reliable)
+- **Fallback**: Match by track position if name changed
+- **Error Handling**: Log missing/moved tracks gracefully
+- **Example**: "Unable to recall track 'Drums': not found in current project"
+
+#### 7. Properties Captured
+**Per Track:**
+- Volume, Pan, Mute state, Record arm state, Track name, Track type
+**Master Track:**
+- Master volume, Master pan
+**Future Extensions:**
+- Device states, Send levels, EQ settings
+
+#### 8. Implementation Benefits
+- **Live Performance Ready**: Instant recall and smooth interpolation
+- **Project Persistence**: Snapshots travel with project files
+- **Error Resilient**: Handles track changes gracefully
+- **Scalable**: Foundation for future device/FX state capture
 - **Convenient Performance Controls**:
   - One-button arrangement for minimizing windows (shrinks browser, device windows, clip-launcher, leaving only arrangement view visible)
   - Toggle Metronom on/off
